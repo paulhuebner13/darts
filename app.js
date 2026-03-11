@@ -29,10 +29,14 @@ const elements = {
   themeToggle: document.getElementById('themeToggle'),
   tabs: Array.from(document.querySelectorAll('.tab')),
   views: Array.from(document.querySelectorAll('.view')),
+  throwCircles: Array.from(document.querySelectorAll('.throw-circle')),
 };
 
 let appData = loadData();
 let currentGame = createEmptyGame();
+let currentTab = 'play';
+let statsDirty = true;
+let historyDirty = true;
 
 function createEmptyGame() {
   return {
@@ -44,13 +48,29 @@ function createEmptyGame() {
   };
 }
 
+function createUndoSnapshot(game) {
+  return {
+    currentIndex: game.currentIndex,
+    totalThrows: game.totalThrows,
+    throwsPerTarget: { ...game.throwsPerTarget },
+  };
+}
+
+function restoreFromSnapshot(snapshot) {
+  currentGame.currentIndex = snapshot.currentIndex;
+  currentGame.totalThrows = snapshot.totalThrows;
+  currentGame.throwsPerTarget = { ...snapshot.throwsPerTarget };
+}
+
 function loadData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { games: [] };
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed.games)) return { games: [] };
-    return parsed;
+    return {
+      games: parsed.games.filter((game) => game && typeof game.totalThrows === 'number' && game.throwsPerTarget),
+    };
   } catch (error) {
     return { games: [] };
   }
@@ -73,9 +93,22 @@ function applyTheme(theme) {
   saveTheme(theme);
 }
 
+function markStatsDirty() {
+  statsDirty = true;
+  historyDirty = true;
+}
+
 function switchTab(tabId) {
+  currentTab = tabId;
   elements.tabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.tab === tabId));
   elements.views.forEach((view) => view.classList.toggle('active', view.id === tabId));
+
+  if (tabId === 'stats' && statsDirty) {
+    renderStats();
+  }
+  if (tabId === 'history' && historyDirty) {
+    renderHistory();
+  }
 }
 
 function formatDate(timestamp) {
@@ -95,11 +128,23 @@ function clearThrowInputs() {
   elements.throw3.checked = false;
 }
 
+
+function flashMissedThrows(selectedHits) {
+  const missedCircles = elements.throwCircles.filter((_, index) => !selectedHits[index]);
+  if (!missedCircles.length) return;
+
+  missedCircles.forEach((circle) => circle.classList.add('miss-flash'));
+  window.setTimeout(() => {
+    missedCircles.forEach((circle) => circle.classList.remove('miss-flash'));
+  }, 380);
+}
+
 function updateGameView() {
   const finished = currentGame.currentIndex >= TARGETS.length;
   elements.currentTarget.textContent = finished ? 'Fertig' : TARGETS[currentGame.currentIndex];
   elements.totalThrows.textContent = String(currentGame.totalThrows);
   elements.continueBtn.disabled = finished;
+  elements.undoBtn.disabled = currentGame.actionLog.length === 0;
 }
 
 function completeGame() {
@@ -108,14 +153,19 @@ function completeGame() {
     id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     finishedAt,
     totalThrows: currentGame.totalThrows,
-    durationMs: finishedAt - currentGame.startTime,
-    throwsPerTarget: currentGame.throwsPerTarget,
+    throwsPerTarget: { ...currentGame.throwsPerTarget },
   };
 
   appData.games.push(gameRecord);
   saveData();
-  renderStats();
-  renderHistory();
+  markStatsDirty();
+
+  if (currentTab === 'stats') {
+    renderStats();
+  }
+  if (currentTab === 'history') {
+    renderHistory();
+  }
 
   elements.finishSummary.textContent = `Du hast ${currentGame.totalThrows} Würfe gebraucht.`;
   if (typeof elements.finishDialog.showModal === 'function') {
@@ -132,32 +182,32 @@ function completeGame() {
 function applyTurn() {
   if (currentGame.currentIndex >= TARGETS.length) return;
 
-  const hits = getSelectedHits();
-  const snapshot = JSON.parse(JSON.stringify(currentGame));
-  currentGame.actionLog.push(snapshot);
+  const selectedHits = getSelectedHits();
+  flashMissedThrows(selectedHits);
+  currentGame.actionLog.push(createUndoSnapshot(currentGame));
 
-  hits.forEach((hit) => {
-    if (currentGame.currentIndex >= TARGETS.length) return;
+  for (const hit of selectedHits) {
+    if (currentGame.currentIndex >= TARGETS.length) break;
     const currentTarget = TARGETS[currentGame.currentIndex];
     currentGame.totalThrows += 1;
     currentGame.throwsPerTarget[currentTarget] += 1;
     if (hit) {
       currentGame.currentIndex += 1;
     }
-  });
+  }
 
   clearThrowInputs();
   updateGameView();
 
   if (currentGame.currentIndex >= TARGETS.length) {
-    completeGame();
+    window.setTimeout(() => completeGame(), 390);
   }
 }
 
 function undoLastAction() {
   const previous = currentGame.actionLog.pop();
   if (!previous) return;
-  currentGame = previous;
+  restoreFromSnapshot(previous);
   clearThrowInputs();
   updateGameView();
 }
@@ -247,7 +297,7 @@ function renderMovingAverageChart(games) {
   const points = values.map((value, index) => {
     const x = padding.left + (values.length === 1 ? chartWidth / 2 : (index / (values.length - 1)) * chartWidth);
     const y = padding.top + ((maxValue - value) / valueRange) * chartHeight;
-    return { x, y, value, gameNumber: index + 1 };
+    return { x, y };
   });
 
   const polyline = points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
@@ -261,8 +311,6 @@ function renderMovingAverageChart(games) {
     `;
   }).join('');
 
-  const firstLabel = 1;
-  const lastLabel = games.length;
   const lastAverage = values[values.length - 1];
 
   elements.movingAverageChart.className = 'chart-box';
@@ -276,9 +324,8 @@ function renderMovingAverageChart(games) {
       <line class="chart-axis" x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}"></line>
       <line class="chart-axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${height - padding.bottom}"></line>
       <polyline class="chart-line" points="${polyline}"></polyline>
-      ${points.map((point) => `<circle class="chart-point" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="3.5"></circle>`).join('')}
-      <text class="chart-label" x="${padding.left}" y="${height - 8}">${firstLabel}</text>
-      <text class="chart-label" x="${(width - padding.right - 16)}" y="${height - 8}">${lastLabel}</text>
+      <text class="chart-label" x="${padding.left}" y="${height - 8}">1</text>
+      <text class="chart-label" x="${(width - padding.right - 16)}" y="${height - 8}">${games.length}</text>
     </svg>
   `;
 }
@@ -288,6 +335,7 @@ function renderStats() {
   elements.gamesPlayed.textContent = String(games.length);
   elements.avgTotalThrows.textContent = games.length ? average(games.map((game) => game.totalThrows)).toFixed(1) : '0.0';
   renderTargetBars(games);
+  statsDirty = false;
 }
 
 function renderHistory() {
@@ -298,6 +346,7 @@ function renderHistory() {
   if (!reversedGames.length) {
     elements.historyList.className = 'history-list empty-state';
     elements.historyList.textContent = 'Noch keine Spiele gespeichert.';
+    historyDirty = false;
     return;
   }
 
@@ -311,6 +360,7 @@ function renderHistory() {
       <div class="history-meta">${formatDate(game.finishedAt)}</div>
     </article>
   `).join('');
+  historyDirty = false;
 }
 
 function exportData() {
@@ -337,10 +387,13 @@ function importData(event) {
       if (!parsed || !Array.isArray(parsed.games)) {
         throw new Error('Ungültiges Format');
       }
-      appData = parsed;
+      appData = {
+        games: parsed.games.filter((game) => game && typeof game.totalThrows === 'number' && game.throwsPerTarget),
+      };
       saveData();
-      renderStats();
-      renderHistory();
+      markStatsDirty();
+      if (currentTab === 'stats') renderStats();
+      if (currentTab === 'history') renderHistory();
       alert('Daten erfolgreich importiert.');
     } catch (error) {
       alert('Import fehlgeschlagen. Bitte eine gültige JSON-Datei verwenden.');
@@ -355,8 +408,9 @@ function clearAllData() {
   if (!confirmed) return;
   appData = { games: [] };
   saveData();
-  renderStats();
-  renderHistory();
+  markStatsDirty();
+  if (currentTab === 'stats') renderStats();
+  if (currentTab === 'history') renderHistory();
 }
 
 function registerServiceWorker() {
@@ -385,9 +439,8 @@ function initEvents() {
 function init() {
   applyTheme(loadTheme());
   initEvents();
-  renderStats();
-  renderHistory();
   updateGameView();
+  switchTab('play');
   registerServiceWorker();
 }
 

@@ -31,24 +31,23 @@ html, body {
   margin: 0;
   padding: 0;
   min-height: 100%;
+  width: 100%;
+  overflow-x: hidden;
   background: var(--bg);
   color: var(--text);
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  overflow-x: hidden;
 }
-body {
-  padding: env(safe-area-inset-top, 0) 0 env(safe-area-inset-bottom, 0);
-  min-height: 100dvh;
-}
+body { padding: env(safe-area-inset-top, 0) 0 env(safe-area-inset-bottom, 0); }
 button, input, label { font: inherit; }
 
 .app-shell {
-  width: 100%;
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 14px 12px 28px;
+  width: min(100%, 720px);
   min-height: 100dvh;
+  margin: 0 auto;
+  padding: 10px 12px 18px;
 }
+
+main { min-height: calc(100dvh - 120px); }
 
 .topbar {
   display: flex;
@@ -93,16 +92,6 @@ button, input, label { font: inherit; }
 .view { display: none; }
 .view.active { display: block; }
 
-#play.view.active {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-#play .card {
-  margin-bottom: 0;
-}
-
 .card {
   background: var(--card);
   border: 1px solid var(--border);
@@ -113,7 +102,7 @@ button, input, label { font: inherit; }
 }
 .hero-card {
   text-align: center;
-  padding: 22px 16px;
+  padding: 20px 16px;
   background: linear-gradient(180deg, var(--card), var(--card-2));
 }
 .small-label { color: var(--muted); font-size: 0.95rem; }
@@ -183,6 +172,19 @@ button, input, label { font: inherit; }
 }
 .throw-circle input:active + span,
 .throw-circle span:active { transform: scale(0.98); }
+
+.throw-circle.miss-flash span {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+  animation: missPulse 0.38s ease-out;
+}
+
+@keyframes missPulse {
+  0% { transform: scale(1); opacity: 1; }
+  35% { transform: scale(1.03); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
 
 .continue-button {
   width: 100%;
@@ -380,108 +382,15 @@ button, input, label { font: inherit; }
 }
 
 
-@media (max-width: 600px) {
-  html, body {
-    height: 100%;
-  }
-
-  .app-shell {
-    padding: 8px 10px 14px;
-  }
-
-  .topbar {
-    margin-bottom: 10px;
-  }
-
-  .topbar h1 {
-    font-size: 1.3rem;
-  }
-
-  .topbar p {
-    font-size: 0.88rem;
-  }
-
-  .icon-button {
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
-  }
-
-  .tabs {
-    gap: 6px;
-    margin-bottom: 10px;
-  }
-
-  .tab {
-    min-height: 44px;
-    padding: 10px 4px;
-    border-radius: 12px;
-    font-size: 0.88rem;
-  }
-
-  #play.view.active {
-    min-height: calc(100dvh - 116px - env(safe-area-inset-bottom, 0px));
-    justify-content: space-between;
-  }
-
-  .card {
-    border-radius: 20px;
-    padding: 14px;
-  }
-
-  .hero-card {
-    padding: 18px 12px;
-  }
-
-  .hero-target {
-    font-size: min(30vw, 7.2rem);
-  }
-
-  .overview-single {
-    padding: 10px 14px;
-  }
-
-  .small-label {
-    font-size: 0.82rem;
-  }
-
-  .big-number {
-    margin-top: 2px;
-    font-size: 2rem;
-  }
-
-  .play-card {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    min-height: 0;
-    padding: 16px 14px 14px;
-  }
-
-  .throw-circle-grid {
-    gap: 12px;
-    margin-bottom: 16px;
-  }
-
-  .throw-circle span {
-    font-size: min(12vw, 4rem);
-  }
-
-  .continue-button {
-    min-height: 68px;
-    border-radius: 20px;
-    font-size: 1.3rem;
-  }
-
-  .small-actions {
-    margin-top: 10px;
-    gap: 10px;
-  }
-
-  .text-button {
-    font-size: 0.92rem;
-    padding: 8px 2px;
-  }
+#play.active { min-height: calc(100dvh - 132px); display: flex; flex-direction: column; }
+#play .hero-card { flex: 0 0 auto; }
+#play .play-card { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; }
+@media (max-width: 480px) {
+  .topbar { margin-bottom: 10px; }
+  .topbar h1 { font-size: 1.35rem; }
+  .topbar p { font-size: 0.92rem; }
+  .hero-card { padding: 16px 12px; }
+  .overview-single { padding: 12px 16px; }
+  .throw-circle-grid { gap: 12px; margin-bottom: 18px; }
+  .continue-button { min-height: 60px; }
 }
-
