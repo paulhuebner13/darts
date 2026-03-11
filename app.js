@@ -1,25 +1,24 @@
-const TARGETS = [...Array.from({ length: 20 }, (_, index) => String(index + 1)), 'Bull'];
 const STORAGE_KEY = 'darts-trainer-data-v1';
 const THEME_KEY = 'darts-trainer-theme';
+const TARGETS = [
+  '1', '2', '3', '4', '5', '6', '7', '8', '9', '10',
+  '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', 'Bull'
+];
+const MOVING_AVERAGE_WINDOW = 10;
 
 const elements = {
   currentTarget: document.getElementById('currentTarget'),
-  progressText: document.getElementById('progressText'),
   totalThrows: document.getElementById('totalThrows'),
-  elapsedTime: document.getElementById('elapsedTime'),
   throw1: document.getElementById('throw1'),
   throw2: document.getElementById('throw2'),
   throw3: document.getElementById('throw3'),
   continueBtn: document.getElementById('continueBtn'),
   undoBtn: document.getElementById('undoBtn'),
   newGameBtn: document.getElementById('newGameBtn'),
-  previewText: document.getElementById('previewText'),
   gamesPlayed: document.getElementById('gamesPlayed'),
   avgTotalThrows: document.getElementById('avgTotalThrows'),
-  bestGame: document.getElementById('bestGame'),
-  lastGame: document.getElementById('lastGame'),
-  targetStatsTable: document.getElementById('targetStatsTable'),
-  trendBox: document.getElementById('trendBox'),
+  targetBars: document.getElementById('targetBars'),
+  movingAverageChart: document.getElementById('movingAverageChart'),
   historyList: document.getElementById('historyList'),
   exportBtn: document.getElementById('exportBtn'),
   importInput: document.getElementById('importInput'),
@@ -34,7 +33,6 @@ const elements = {
 
 let appData = loadData();
 let currentGame = createEmptyGame();
-let timerId = null;
 
 function createEmptyGame() {
   return {
@@ -80,13 +78,6 @@ function switchTab(tabId) {
   elements.views.forEach((view) => view.classList.toggle('active', view.id === tabId));
 }
 
-function formatDuration(ms) {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-}
-
 function formatDate(timestamp) {
   return new Intl.DateTimeFormat('de-AT', {
     dateStyle: 'medium',
@@ -102,46 +93,13 @@ function clearThrowInputs() {
   elements.throw1.checked = false;
   elements.throw2.checked = false;
   elements.throw3.checked = false;
-  updatePreview();
-}
-
-function updatePreview() {
-  if (currentGame.currentIndex >= TARGETS.length) {
-    elements.previewText.textContent = 'Spiel bereits beendet.';
-    return;
-  }
-
-  const hits = getSelectedHits();
-  let simulatedIndex = currentGame.currentIndex;
-  const parts = [];
-
-  hits.forEach((hit, index) => {
-    const target = TARGETS[simulatedIndex] || 'fertig';
-    if (simulatedIndex >= TARGETS.length) {
-      parts.push(`Wurf ${index + 1}: Spiel schon beendet`);
-      return;
-    }
-    if (hit) {
-      parts.push(`Wurf ${index + 1}: ${target} getroffen`);
-      simulatedIndex += 1;
-    } else {
-      parts.push(`Wurf ${index + 1}: ${target} nicht getroffen`);
-    }
-  });
-
-  elements.previewText.textContent = parts.join(' | ');
 }
 
 function updateGameView() {
   const finished = currentGame.currentIndex >= TARGETS.length;
   elements.currentTarget.textContent = finished ? 'Fertig' : TARGETS[currentGame.currentIndex];
-  elements.progressText.textContent = finished
-    ? 'Alle 21 Ziele geschafft'
-    : `Ziel ${currentGame.currentIndex + 1} von ${TARGETS.length}`;
   elements.totalThrows.textContent = String(currentGame.totalThrows);
-  elements.elapsedTime.textContent = formatDuration(Date.now() - currentGame.startTime);
   elements.continueBtn.disabled = finished;
-  updatePreview();
 }
 
 function completeGame() {
@@ -159,7 +117,7 @@ function completeGame() {
   renderStats();
   renderHistory();
 
-  elements.finishSummary.textContent = `Du hast ${currentGame.totalThrows} Würfe gebraucht. Dauer: ${formatDuration(gameRecord.durationMs)}.`;
+  elements.finishSummary.textContent = `Du hast ${currentGame.totalThrows} Würfe gebraucht.`;
   if (typeof elements.finishDialog.showModal === 'function') {
     elements.finishDialog.showModal();
   } else {
@@ -220,64 +178,137 @@ function average(values) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function renderTargetBars(games) {
+  if (!games.length) {
+    elements.targetBars.className = 'target-bars empty-state';
+    elements.targetBars.textContent = 'Noch keine abgeschlossenen Spiele vorhanden.';
+    return;
+  }
+
+  const targetAverages = TARGETS.map((target) => {
+    const values = games
+      .map((game) => game.throwsPerTarget?.[target])
+      .filter((value) => typeof value === 'number');
+    return {
+      target,
+      average: values.length ? average(values) : 0,
+    };
+  });
+
+  const maxAverage = Math.max(...targetAverages.map((item) => item.average), 1);
+
+  elements.targetBars.className = 'target-bars';
+  elements.targetBars.innerHTML = targetAverages.map((item) => {
+    const widthPercent = (item.average / maxAverage) * 100;
+    return `
+      <div class="target-bar-row">
+        <div class="target-name">${escapeHtml(item.target)}</div>
+        <div class="bar-track"><div class="bar-fill" style="width: ${widthPercent.toFixed(2)}%"></div></div>
+        <div class="bar-value">${item.average.toFixed(2)}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function calculateMovingAverages(games, windowSize) {
+  return games.map((game, index) => {
+    const start = Math.max(0, index - windowSize + 1);
+    const slice = games.slice(start, index + 1);
+    return average(slice.map((entry) => entry.totalThrows));
+  });
+}
+
+function renderMovingAverageChart(games) {
+  if (!games.length) {
+    elements.movingAverageChart.className = 'chart-box empty-state';
+    elements.movingAverageChart.textContent = 'Noch keine abgeschlossenen Spiele vorhanden.';
+    return;
+  }
+
+  const values = calculateMovingAverages(games, MOVING_AVERAGE_WINDOW);
+  const width = 680;
+  const height = 260;
+  const padding = { top: 18, right: 18, bottom: 32, left: 38 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const valueRange = Math.max(1, maxValue - minValue);
+
+  const points = values.map((value, index) => {
+    const x = padding.left + (values.length === 1 ? chartWidth / 2 : (index / (values.length - 1)) * chartWidth);
+    const y = padding.top + ((maxValue - value) / valueRange) * chartHeight;
+    return { x, y, value, gameNumber: index + 1 };
+  });
+
+  const polyline = points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
+  const tickValues = [maxValue, minValue + valueRange / 2, minValue];
+
+  const gridLines = tickValues.map((tick) => {
+    const y = padding.top + ((maxValue - tick) / valueRange) * chartHeight;
+    return `
+      <line class="chart-grid" x1="${padding.left}" y1="${y.toFixed(1)}" x2="${width - padding.right}" y2="${y.toFixed(1)}"></line>
+      <text class="chart-label" x="6" y="${(y + 4).toFixed(1)}">${tick.toFixed(1)}</text>
+    `;
+  }).join('');
+
+  const firstLabel = 1;
+  const lastLabel = games.length;
+  const lastAverage = values[values.length - 1];
+
+  elements.movingAverageChart.className = 'chart-box';
+  elements.movingAverageChart.innerHTML = `
+    <div class="chart-meta">
+      <span>Fenster: letzte ${Math.min(MOVING_AVERAGE_WINDOW, games.length)} Spiele</span>
+      <span>Aktueller MA: ${lastAverage.toFixed(1)} Würfe</span>
+    </div>
+    <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Moving Average der Gesamtwürfe">
+      ${gridLines}
+      <line class="chart-axis" x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}"></line>
+      <line class="chart-axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${height - padding.bottom}"></line>
+      <polyline class="chart-line" points="${polyline}"></polyline>
+      ${points.map((point) => `<circle class="chart-point" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="3.5"></circle>`).join('')}
+      <text class="chart-label" x="${padding.left}" y="${height - 8}">${firstLabel}</text>
+      <text class="chart-label" x="${(width - padding.right - 16)}" y="${height - 8}">${lastLabel}</text>
+    </svg>
+  `;
+}
+
 function renderStats() {
   const games = appData.games;
   elements.gamesPlayed.textContent = String(games.length);
   elements.avgTotalThrows.textContent = games.length ? average(games.map((game) => game.totalThrows)).toFixed(1) : '0.0';
-  elements.bestGame.textContent = games.length ? String(Math.min(...games.map((game) => game.totalThrows))) : '-';
-  elements.lastGame.textContent = games.length ? String(games[games.length - 1].totalThrows) : '-';
-
-  const rows = TARGETS.map((target) => {
-    const values = games.map((game) => game.throwsPerTarget?.[target]).filter((value) => typeof value === 'number');
-    const avg = values.length ? average(values).toFixed(2) : '-';
-    const best = values.length ? Math.min(...values) : '-';
-    const worst = values.length ? Math.max(...values) : '-';
-    return `<tr><td>${target}</td><td>${avg}</td><td>${best}</td><td>${worst}</td></tr>`;
-  }).join('');
-
-  elements.targetStatsTable.innerHTML = `
-    <table class="stats-table">
-      <thead>
-        <tr>
-          <th>Ziel</th>
-          <th>Ø Würfe</th>
-          <th>Bestwert</th>
-          <th>Schlechtester Wert</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
-
-  if (!games.length) {
-    elements.trendBox.textContent = 'Noch keine abgeschlossenen Spiele vorhanden.';
-    return;
-  }
-
-  const recent = games.slice(-10);
-  const trendText = recent
-    .map((game, index) => `${games.length - recent.length + index + 1}: ${game.totalThrows}`)
-    .join(' | ');
-  elements.trendBox.textContent = `Letzte Spiele nach Gesamtwürfen: ${trendText}`;
+  renderTargetBars(games);
 }
 
 function renderHistory() {
-  const games = [...appData.games].reverse();
-  if (!games.length) {
+  const games = appData.games;
+  renderMovingAverageChart(games);
+
+  const reversedGames = [...games].reverse();
+  if (!reversedGames.length) {
     elements.historyList.className = 'history-list empty-state';
     elements.historyList.textContent = 'Noch keine Spiele gespeichert.';
     return;
   }
 
   elements.historyList.className = 'history-list';
-  elements.historyList.innerHTML = games.map((game, index) => `
+  elements.historyList.innerHTML = reversedGames.map((game, index) => `
     <article class="history-item">
       <div class="history-top">
-        <strong>Spiel ${appData.games.length - index}</strong>
+        <strong>Spiel ${games.length - index}</strong>
         <strong>${game.totalThrows} Würfe</strong>
       </div>
-      <div class="history-meta">${formatDate(game.finishedAt)} | Dauer ${formatDuration(game.durationMs || 0)}</div>
-      <div class="history-meta">1: ${game.throwsPerTarget['1']} | 5: ${game.throwsPerTarget['5']} | 10: ${game.throwsPerTarget['10']} | 20: ${game.throwsPerTarget['20']} | Bull: ${game.throwsPerTarget['Bull']}</div>
+      <div class="history-meta">${formatDate(game.finishedAt)}</div>
     </article>
   `).join('');
 }
@@ -334,16 +365,7 @@ function registerServiceWorker() {
   }
 }
 
-function startClock() {
-  if (timerId) clearInterval(timerId);
-  timerId = setInterval(updateGameView, 1000);
-}
-
 function initEvents() {
-  [elements.throw1, elements.throw2, elements.throw3].forEach((checkbox) => {
-    checkbox.addEventListener('change', updatePreview);
-  });
-
   elements.continueBtn.addEventListener('click', applyTurn);
   elements.undoBtn.addEventListener('click', undoLastAction);
   elements.newGameBtn.addEventListener('click', startNewGame);
@@ -355,7 +377,6 @@ function initEvents() {
     const newTheme = document.body.classList.contains('dark') ? 'light' : 'dark';
     applyTheme(newTheme);
   });
-
   elements.tabs.forEach((tab) => {
     tab.addEventListener('click', () => switchTab(tab.dataset.tab));
   });
@@ -367,7 +388,6 @@ function init() {
   renderStats();
   renderHistory();
   updateGameView();
-  startClock();
   registerServiceWorker();
 }
 

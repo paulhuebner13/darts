@@ -31,64 +31,45 @@
     <main>
       <section id="play" class="view active">
         <div class="card hero-card">
-          <div class="hero-label">Aktuelles Ziel</div>
           <div id="currentTarget" class="hero-target">1</div>
-          <div id="progressText" class="hero-progress">Ziel 1 von 21</div>
         </div>
 
-        <div class="card overview-grid">
+        <div class="card overview-single">
           <div>
             <div class="small-label">Gesamtwürfe</div>
             <div id="totalThrows" class="big-number">0</div>
           </div>
-          <div>
-            <div class="small-label">Spieldauer</div>
-            <div id="elapsedTime" class="big-number">00:00</div>
-          </div>
         </div>
 
-        <div class="card">
-          <div class="section-title">Diese 3 Würfe</div>
-          <p class="muted">
-            Aktiviere die Würfe, bei denen du das aktuelle Ziel und direkt danach die nächsten Ziele getroffen hast.
-          </p>
-
-          <div class="throw-grid">
-            <label class="throw-box">
+        <div class="card play-card">
+          <div class="throw-circle-grid" aria-label="Treffer in dieser Aufnahme">
+            <label class="throw-circle">
               <input type="checkbox" id="throw1" />
-              <span>Wurf 1 trifft</span>
+              <span>1</span>
             </label>
-            <label class="throw-box">
+            <label class="throw-circle">
               <input type="checkbox" id="throw2" />
-              <span>Wurf 2 trifft</span>
+              <span>2</span>
             </label>
-            <label class="throw-box">
+            <label class="throw-circle">
               <input type="checkbox" id="throw3" />
-              <span>Wurf 3 trifft</span>
+              <span>3</span>
             </label>
           </div>
 
-          <div id="throwHint" class="hint-box">
-            Beispiel: Wenn du gerade auf 4 wirfst und dann 4, 5, Fehlwurf triffst, aktivierst du Wurf 1 und Wurf 2.
-          </div>
+          <button id="continueBtn" class="primary-button continue-button" type="button">Weiter</button>
 
-          <div class="button-row stacked">
-            <button id="continueBtn" class="primary-button" type="button">Weiter</button>
-            <button id="undoBtn" class="secondary-button" type="button">Letzten Zug rückgängig</button>
-            <button id="newGameBtn" class="ghost-button" type="button">Neues Spiel starten</button>
+          <div class="button-row small-actions">
+            <button id="undoBtn" class="text-button" type="button">Letzten Zug rückgängig</button>
+            <button id="newGameBtn" class="text-button danger-text" type="button">Neues Spiel starten</button>
           </div>
-        </div>
-
-        <div class="card compact-card">
-          <div class="section-title">Aktuelle Aufnahme-Vorschau</div>
-          <div id="previewText" class="preview-text">Noch keine Eingabe.</div>
         </div>
       </section>
 
       <section id="stats" class="view">
         <div class="card">
           <div class="section-title">Überblick</div>
-          <div class="stats-grid">
+          <div class="stats-grid compact">
             <div>
               <div class="small-label">Gespielte Spiele</div>
               <div id="gamesPlayed" class="big-number">0</div>
@@ -97,29 +78,21 @@
               <div class="small-label">Ø Gesamtwürfe</div>
               <div id="avgTotalThrows" class="big-number">0.0</div>
             </div>
-            <div>
-              <div class="small-label">Bestes Spiel</div>
-              <div id="bestGame" class="big-number">-</div>
-            </div>
-            <div>
-              <div class="small-label">Letztes Spiel</div>
-              <div id="lastGame" class="big-number">-</div>
-            </div>
           </div>
         </div>
 
         <div class="card">
-          <div class="section-title">Durchschnitt pro Ziel</div>
-          <div id="targetStatsTable" class="table-scroll"></div>
-        </div>
-
-        <div class="card">
-          <div class="section-title">Trend der letzten Spiele</div>
-          <div id="trendBox" class="trend-box">Noch keine abgeschlossenen Spiele vorhanden.</div>
+          <div class="section-title">Ø Würfe pro Ziel</div>
+          <div id="targetBars" class="target-bars empty-state">Noch keine abgeschlossenen Spiele vorhanden.</div>
         </div>
       </section>
 
       <section id="history" class="view">
+        <div class="card">
+          <div class="section-title">Moving Average der letzten 10 Spiele</div>
+          <div id="movingAverageChart" class="chart-box empty-state">Noch keine abgeschlossenen Spiele vorhanden.</div>
+        </div>
+
         <div class="card">
           <div class="section-title">Gespeicherte Spiele</div>
           <div id="historyList" class="history-list empty-state">Noch keine Spiele gespeichert.</div>
