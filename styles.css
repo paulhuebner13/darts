@@ -394,3 +394,66 @@ button, input, label { font: inherit; }
 @media (min-width: 640px) {
   .button-row.stacked { flex-direction: row; }
 }
+
+
+.hero-split-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(132px, 0.95fr);
+  gap: 12px;
+  align-items: stretch;
+  padding: 16px;
+  background: linear-gradient(180deg, var(--card), var(--card-2));
+}
+.hero-main {
+  min-height: 128px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 10px 8px;
+}
+.next-targets-preview {
+  display: grid;
+  gap: 8px;
+  align-content: center;
+}
+.next-target-row {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 9px;
+  border-radius: 14px;
+  background: var(--card-2);
+  border: 1px solid var(--border);
+}
+.next-target-label {
+  font-weight: 800;
+  font-size: 1rem;
+}
+.next-target-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.empty-mini {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  min-height: 100%;
+}
+.metrics-card {
+  margin-bottom: 18px;
+}
+.play-card {
+  margin-top: 0;
+}
+.stats-grid.compact {
+  grid-template-columns: repeat(2, 1fr);
+}
+#stats .stats-grid.compact > :last-child {
+  grid-column: 1 / -1;
+}
