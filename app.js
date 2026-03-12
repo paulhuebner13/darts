@@ -25,6 +25,7 @@ const elements = {
   newGameBtn: document.getElementById('newGameBtn'),
   gamesPlayed: document.getElementById('gamesPlayed'),
   avgTotalThrows: document.getElementById('avgTotalThrows'),
+  bestOverall: document.getElementById('bestOverall'),
   targetBars: document.getElementById('targetBars'),
   movingAverageChart: document.getElementById('movingAverageChart'),
   historyList: document.getElementById('historyList'),
@@ -214,7 +215,7 @@ function renderNextTargetsPreview() {
     const stat = statsByTarget.get(target);
     const valueText = stat && stat.average !== null
       ? `${stat.average.toFixed(2)} Ø`
-      : 'keine Daten';
+      : '–';
 
     return `
       <div class="next-target-row">
@@ -224,6 +225,7 @@ function renderNextTargetsPreview() {
     `;
   }).join('');
 }
+
 
 function updateGameView() {
   const finished = currentGame.currentIndex >= TARGETS.length;
@@ -331,14 +333,19 @@ function renderTargetBars() {
   const maxAverage = Math.max(...targetStats.map((item) => item.average || 0), 1);
 
   elements.targetBars.className = 'target-bars';
-  elements.targetBars.innerHTML = targetStats.map((item) => {
+  elements.targetBars.innerHTML = `
+    <div class="target-bar-header">
+      <div>Ziel</div>
+      <div>Ø letzte 30</div>
+      <div>Ø</div>
+    </div>
+  ` + targetStats.map((item) => {
     const widthPercent = item.average !== null ? (item.average / maxAverage) * 100 : 0;
     return `
       <div class="target-bar-row">
         <div class="target-name">${escapeHtml(item.target)}</div>
         <div class="bar-track"><div class="bar-fill" style="width: ${widthPercent.toFixed(2)}%"></div></div>
         <div class="bar-value">${item.average !== null ? item.average.toFixed(2) : '–'}</div>
-        <div class="bar-best">${item.best !== null ? item.best : '–'}</div>
       </div>
     `;
   }).join('');
@@ -346,13 +353,16 @@ function renderTargetBars() {
 
 function calculateMovingAveragePoints(games, windowSize) {
   return games.map((game, index) => {
-    const actualWindow = index + 1 < windowSize ? index + 1 : windowSize;
-    const start = index + 1 < windowSize ? 0 : index - windowSize + 1;
-    const slice = games.slice(start, index + 1);
+    const hasFullWindow = index + 1 >= windowSize;
+    const slice = hasFullWindow
+      ? games.slice(index - windowSize + 1, index + 1)
+      : games.slice(0, index + 1);
+
     return {
       gameNumber: index + 1,
+      pointValue: game.totalThrows,
       average: average(slice.map((entry) => entry.totalThrows)),
-      isFullWindow: actualWindow === windowSize,
+      isFullWindow: hasFullWindow,
     };
   });
 }
@@ -366,7 +376,7 @@ function renderMovingAverageChart() {
   }
 
   const pointsData = calculateMovingAveragePoints(games, MOVING_AVERAGE_WINDOW);
-  const values = pointsData.map((item) => item.average);
+  const values = pointsData.flatMap((item) => item.isFullWindow ? [item.pointValue, item.average] : [item.pointValue]);
   const width = 680;
   const height = 260;
   const padding = { top: 18, right: 18, bottom: 32, left: 38 };
@@ -378,12 +388,13 @@ function renderMovingAverageChart() {
 
   const points = pointsData.map((item, index) => {
     const x = padding.left + (pointsData.length === 1 ? chartWidth / 2 : (index / (pointsData.length - 1)) * chartWidth);
-    const y = padding.top + ((maxValue - item.average) / valueRange) * chartHeight;
-    return { ...item, x, y };
+    const pointY = padding.top + ((maxValue - item.pointValue) / valueRange) * chartHeight;
+    const avgY = padding.top + ((maxValue - item.average) / valueRange) * chartHeight;
+    return { ...item, x, pointY, avgY };
   });
 
   const fullWindowPoints = points.filter((point) => point.isFullWindow);
-  const polyline = fullWindowPoints.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
+  const polyline = fullWindowPoints.map((point) => `${point.x.toFixed(1)},${point.avgY.toFixed(1)}`).join(' ');
   const tickValues = [maxValue, minValue + valueRange / 2, minValue];
   const gridLines = tickValues.map((tick) => {
     const y = padding.top + ((maxValue - tick) / valueRange) * chartHeight;
@@ -394,21 +405,21 @@ function renderMovingAverageChart() {
   }).join('');
 
   const pointsMarkup = points.map((point) => `
-    <circle class="chart-point${point.isFullWindow ? '' : ' early'}" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="${point.isFullWindow ? 3.6 : 3.2}"></circle>
+    <circle class="chart-point" cx="${point.x.toFixed(1)}" cy="${point.pointY.toFixed(1)}" r="3.5"></circle>
   `).join('');
 
   const latest = points[points.length - 1];
-  const metaText = latest.isFullWindow
-    ? `Aktueller MA: ${latest.average.toFixed(1)} Würfe`
+  const metaText = points.length >= MOVING_AVERAGE_WINDOW
+    ? `MA10 zuletzt: ${latest.average.toFixed(1)} Würfe`
     : `Aktueller Schnitt: ${latest.average.toFixed(1)} Würfe`;
 
   elements.movingAverageChart.className = 'chart-box';
   elements.movingAverageChart.innerHTML = `
     <div class="chart-meta">
-      <span>Linie ab Spiel ${MOVING_AVERAGE_WINDOW}</span>
+      <span>Punkte = einzelne Spiele</span>
       <span>${metaText}</span>
     </div>
-    <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Moving Average der Gesamtwürfe">
+    <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Verlauf der Gesamtwürfe mit Moving Average">
       ${gridLines}
       <line class="chart-axis" x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}"></line>
       <line class="chart-axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${height - padding.bottom}"></line>
@@ -425,6 +436,7 @@ function renderStats() {
   const statsGames = getLastGames(STATS_WINDOW);
   elements.gamesPlayed.textContent = String(allGames.length);
   elements.avgTotalThrows.textContent = statsGames.length ? average(statsGames.map((game) => game.totalThrows)).toFixed(1) : '0.0';
+  elements.bestOverall.textContent = allGames.length ? String(Math.min(...allGames.map((game) => game.totalThrows))) : '–';
   renderTargetBars();
   statsDirty = false;
 }
