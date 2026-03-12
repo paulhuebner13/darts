@@ -2,11 +2,12 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#111827" />
   <meta name="description" content="Darts Training App für 1 bis 20 und Bull mit lokaler Speicherung und Statistik." />
   <link rel="manifest" href="manifest.json" />
-  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <link rel="stylesheet" href="styles.css" />
   <title>Darts Trainer</title>
 </head>
@@ -29,37 +30,28 @@
 
     <main>
       <section id="play" class="view active">
-        <div class="card hero-card hero-split-card compact-hero">
-          <div class="hero-main">
-            <div id="currentTarget" class="hero-target">1</div>
-          </div>
-          <div class="hero-side">
-            <div id="nextTargetsPreview" class="next-targets-preview empty-mini">Noch keine Daten</div>
-          </div>
+        <div class="card hero-card">
+          <div id="currentTarget" class="hero-target">1</div>
         </div>
 
-        <div class="overview-grid">
-          <div class="card overview-single compact-stat-card">
+        <div class="card overview-single">
+          <div>
             <div class="small-label">Gesamtwürfe</div>
             <div id="totalThrows" class="big-number">0</div>
-          </div>
-          <div class="card overview-single compact-stat-card">
-            <div class="small-label">Ø Würfe pro Treffer</div>
-            <div id="avgThrowsPerHit" class="big-number">0.0</div>
           </div>
         </div>
 
         <div class="card play-card">
           <div class="throw-circle-grid" aria-label="Treffer in dieser Aufnahme">
-            <label class="throw-circle" id="throwCircle1">
+            <label class="throw-circle">
               <input type="checkbox" id="throw1" />
               <span>1</span>
             </label>
-            <label class="throw-circle" id="throwCircle2">
+            <label class="throw-circle">
               <input type="checkbox" id="throw2" />
               <span>2</span>
             </label>
-            <label class="throw-circle" id="throwCircle3">
+            <label class="throw-circle">
               <input type="checkbox" id="throw3" />
               <span>3</span>
             </label>
@@ -83,18 +75,14 @@
               <div id="gamesPlayed" class="big-number">0</div>
             </div>
             <div>
-              <div class="small-label">Ø Gesamtwürfe letzte 30</div>
+              <div class="small-label">Ø Gesamtwürfe</div>
               <div id="avgTotalThrows" class="big-number">0.0</div>
-            </div>
-            <div>
-              <div class="small-label">Highscore</div>
-              <div id="bestOverall" class="big-number">–</div>
             </div>
           </div>
         </div>
 
         <div class="card">
-          <div class="section-title">Ø Würfe pro Ziel letzte 30 Spiele</div>
+          <div class="section-title">Ø Würfe pro Ziel</div>
           <div id="targetBars" class="target-bars empty-state">Noch keine abgeschlossenen Spiele vorhanden.</div>
         </div>
       </section>
@@ -127,7 +115,7 @@
 
         <div class="card">
           <div class="section-title">Hinweis</div>
-          <p class="muted">Bestehende gespeicherte Spiele bleiben unverändert. Neue Auswertungen werden nur aus den vorhandenen Daten berechnet.</p>
+          <p class="muted">Für GitHub Pages reicht es, diese Dateien in ein Repository zu legen. Danach kannst du die Seite am Handy in Chrome öffnen und zum Startbildschirm hinzufügen.</p>
         </div>
       </section>
     </main>
