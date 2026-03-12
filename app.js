@@ -5,13 +5,21 @@ const TARGETS = [
   '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', 'Bull'
 ];
 const MOVING_AVERAGE_WINDOW = 10;
+const STATS_WINDOW = 30;
+const PLAY_PREVIEW_WINDOW = 20;
+const FLASH_DURATION_MS = 390;
 
 const elements = {
   currentTarget: document.getElementById('currentTarget'),
+  nextTargetsPreview: document.getElementById('nextTargetsPreview'),
   totalThrows: document.getElementById('totalThrows'),
+  avgThrowsPerHit: document.getElementById('avgThrowsPerHit'),
   throw1: document.getElementById('throw1'),
   throw2: document.getElementById('throw2'),
   throw3: document.getElementById('throw3'),
+  throwCircle1: document.getElementById('throwCircle1'),
+  throwCircle2: document.getElementById('throwCircle2'),
+  throwCircle3: document.getElementById('throwCircle3'),
   continueBtn: document.getElementById('continueBtn'),
   undoBtn: document.getElementById('undoBtn'),
   newGameBtn: document.getElementById('newGameBtn'),
@@ -29,14 +37,17 @@ const elements = {
   themeToggle: document.getElementById('themeToggle'),
   tabs: Array.from(document.querySelectorAll('.tab')),
   views: Array.from(document.querySelectorAll('.view')),
-  throwCircles: Array.from(document.querySelectorAll('.throw-circle')),
 };
+
+const throwInputs = [elements.throw1, elements.throw2, elements.throw3];
+const throwCircles = [elements.throwCircle1, elements.throwCircle2, elements.throwCircle3];
 
 let appData = loadData();
 let currentGame = createEmptyGame();
 let currentTab = 'play';
 let statsDirty = true;
 let historyDirty = true;
+let finishTimeoutId = null;
 
 function createEmptyGame() {
   return {
@@ -48,18 +59,25 @@ function createEmptyGame() {
   };
 }
 
-function createUndoSnapshot(game) {
-  return {
-    currentIndex: game.currentIndex,
-    totalThrows: game.totalThrows,
-    throwsPerTarget: { ...game.throwsPerTarget },
-  };
-}
+function sanitizeGame(game) {
+  if (!game || typeof game.totalThrows !== 'number' || typeof game.throwsPerTarget !== 'object') {
+    return null;
+  }
 
-function restoreFromSnapshot(snapshot) {
-  currentGame.currentIndex = snapshot.currentIndex;
-  currentGame.totalThrows = snapshot.totalThrows;
-  currentGame.throwsPerTarget = { ...snapshot.throwsPerTarget };
+  const throwsPerTarget = Object.fromEntries(
+    TARGETS.map((target) => {
+      const raw = game.throwsPerTarget?.[target];
+      return [target, typeof raw === 'number' ? raw : 0];
+    })
+  );
+
+  return {
+    id: game.id || `${game.finishedAt || Date.now()}-${Math.random().toString(16).slice(2)}`,
+    finishedAt: typeof game.finishedAt === 'number' ? game.finishedAt : Date.now(),
+    totalThrows: game.totalThrows,
+    throwsPerTarget,
+    durationMs: typeof game.durationMs === 'number' ? game.durationMs : undefined,
+  };
 }
 
 function loadData() {
@@ -68,9 +86,7 @@ function loadData() {
     if (!raw) return { games: [] };
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed.games)) return { games: [] };
-    return {
-      games: parsed.games.filter((game) => game && typeof game.totalThrows === 'number' && game.throwsPerTarget),
-    };
+    return { games: parsed.games.map(sanitizeGame).filter(Boolean) };
   } catch (error) {
     return { games: [] };
   }
@@ -98,17 +114,17 @@ function markStatsDirty() {
   historyDirty = true;
 }
 
+function getLastGames(limit) {
+  return appData.games.slice(-limit);
+}
+
 function switchTab(tabId) {
   currentTab = tabId;
   elements.tabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.tab === tabId));
   elements.views.forEach((view) => view.classList.toggle('active', view.id === tabId));
 
-  if (tabId === 'stats' && statsDirty) {
-    renderStats();
-  }
-  if (tabId === 'history' && historyDirty) {
-    renderHistory();
-  }
+  if (tabId === 'stats' && statsDirty) renderStats();
+  if (tabId === 'history' && historyDirty) renderHistory();
 }
 
 function formatDate(timestamp) {
@@ -118,33 +134,107 @@ function formatDate(timestamp) {
   }).format(new Date(timestamp));
 }
 
+function average(values) {
+  if (!values.length) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
 function getSelectedHits() {
-  return [elements.throw1.checked, elements.throw2.checked, elements.throw3.checked];
+  return throwInputs.map((input) => input.checked);
 }
 
 function clearThrowInputs() {
-  elements.throw1.checked = false;
-  elements.throw2.checked = false;
-  elements.throw3.checked = false;
+  throwInputs.forEach((input) => {
+    input.checked = false;
+  });
 }
 
+function createUndoSnapshot(game) {
+  return {
+    currentIndex: game.currentIndex,
+    totalThrows: game.totalThrows,
+    throwsPerTarget: { ...game.throwsPerTarget },
+  };
+}
+
+function restoreFromSnapshot(snapshot) {
+  currentGame.currentIndex = snapshot.currentIndex;
+  currentGame.totalThrows = snapshot.totalThrows;
+  currentGame.throwsPerTarget = { ...snapshot.throwsPerTarget };
+}
 
 function flashMissedThrows(selectedHits) {
-  const missedCircles = elements.throwCircles.filter((_, index) => !selectedHits[index]);
-  if (!missedCircles.length) return;
+  throwCircles.forEach((circle, index) => {
+    circle.classList.remove('miss-flash');
+    if (!selectedHits[index]) {
+      void circle.offsetWidth;
+      circle.classList.add('miss-flash');
+      window.setTimeout(() => circle.classList.remove('miss-flash'), FLASH_DURATION_MS);
+    }
+  });
+}
 
-  missedCircles.forEach((circle) => circle.classList.add('miss-flash'));
-  window.setTimeout(() => {
-    missedCircles.forEach((circle) => circle.classList.remove('miss-flash'));
-  }, 380);
+function getRollingTargetStats(limit) {
+  const games = getLastGames(limit);
+  return TARGETS.map((target) => {
+    const values = games
+      .map((game) => game.throwsPerTarget?.[target])
+      .filter((value) => typeof value === 'number');
+
+    return {
+      target,
+      average: values.length ? average(values) : null,
+      best: values.length ? Math.min(...values) : null,
+      samples: values.length,
+    };
+  });
+}
+
+function renderNextTargetsPreview() {
+  const statsByTarget = new Map(getRollingTargetStats(PLAY_PREVIEW_WINDOW).map((item) => [item.target, item]));
+  const previewTargets = TARGETS.slice(currentGame.currentIndex, currentGame.currentIndex + 3);
+
+  if (!previewTargets.length) {
+    elements.nextTargetsPreview.className = 'next-targets-preview empty-mini';
+    elements.nextTargetsPreview.textContent = 'Fertig';
+    return;
+  }
+
+  elements.nextTargetsPreview.className = 'next-targets-preview';
+  elements.nextTargetsPreview.innerHTML = previewTargets.map((target) => {
+    const stat = statsByTarget.get(target);
+    const valueText = stat && stat.average !== null
+      ? `${stat.average.toFixed(2)} Ø`
+      : 'keine Daten';
+
+    return `
+      <div class="next-target-row">
+        <div class="next-target-label">${escapeHtml(target)}</div>
+        <div class="next-target-value">${valueText}</div>
+      </div>
+    `;
+  }).join('');
 }
 
 function updateGameView() {
   const finished = currentGame.currentIndex >= TARGETS.length;
+  const hitsCompleted = currentGame.currentIndex;
+  const avgThrowsPerHit = hitsCompleted > 0 ? currentGame.totalThrows / hitsCompleted : 0;
+
   elements.currentTarget.textContent = finished ? 'Fertig' : TARGETS[currentGame.currentIndex];
   elements.totalThrows.textContent = String(currentGame.totalThrows);
+  elements.avgThrowsPerHit.textContent = avgThrowsPerHit ? avgThrowsPerHit.toFixed(2) : '0.0';
   elements.continueBtn.disabled = finished;
-  elements.undoBtn.disabled = currentGame.actionLog.length === 0;
+  renderNextTargetsPreview();
 }
 
 function completeGame() {
@@ -160,12 +250,8 @@ function completeGame() {
   saveData();
   markStatsDirty();
 
-  if (currentTab === 'stats') {
-    renderStats();
-  }
-  if (currentTab === 'history') {
-    renderHistory();
-  }
+  if (currentTab === 'stats') renderStats();
+  if (currentTab === 'history') renderHistory();
 
   elements.finishSummary.textContent = `Du hast ${currentGame.totalThrows} Würfe gebraucht.`;
   if (typeof elements.finishDialog.showModal === 'function') {
@@ -183,28 +269,34 @@ function applyTurn() {
   if (currentGame.currentIndex >= TARGETS.length) return;
 
   const selectedHits = getSelectedHits();
-  flashMissedThrows(selectedHits);
   currentGame.actionLog.push(createUndoSnapshot(currentGame));
+  flashMissedThrows(selectedHits);
 
-  for (const hit of selectedHits) {
-    if (currentGame.currentIndex >= TARGETS.length) break;
+  selectedHits.forEach((hit) => {
+    if (currentGame.currentIndex >= TARGETS.length) return;
     const currentTarget = TARGETS[currentGame.currentIndex];
     currentGame.totalThrows += 1;
     currentGame.throwsPerTarget[currentTarget] += 1;
     if (hit) {
       currentGame.currentIndex += 1;
     }
-  }
+  });
 
   clearThrowInputs();
   updateGameView();
 
   if (currentGame.currentIndex >= TARGETS.length) {
-    window.setTimeout(() => completeGame(), 390);
+    window.clearTimeout(finishTimeoutId);
+    finishTimeoutId = window.setTimeout(() => completeGame(), FLASH_DURATION_MS);
   }
 }
 
 function undoLastAction() {
+  if (finishTimeoutId) {
+    window.clearTimeout(finishTimeoutId);
+    finishTimeoutId = null;
+  }
+
   const previous = currentGame.actionLog.pop();
   if (!previous) return;
   restoreFromSnapshot(previous);
@@ -218,73 +310,63 @@ function startNewGame() {
     const confirmed = window.confirm('Aktuelles Spiel wirklich verwerfen und neu starten?');
     if (!confirmed) return;
   }
+  if (finishTimeoutId) {
+    window.clearTimeout(finishTimeoutId);
+    finishTimeoutId = null;
+  }
   currentGame = createEmptyGame();
   clearThrowInputs();
   updateGameView();
 }
 
-function average(values) {
-  if (!values.length) return 0;
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
-function renderTargetBars(games) {
+function renderTargetBars() {
+  const games = getLastGames(STATS_WINDOW);
   if (!games.length) {
     elements.targetBars.className = 'target-bars empty-state';
     elements.targetBars.textContent = 'Noch keine abgeschlossenen Spiele vorhanden.';
     return;
   }
 
-  const targetAverages = TARGETS.map((target) => {
-    const values = games
-      .map((game) => game.throwsPerTarget?.[target])
-      .filter((value) => typeof value === 'number');
-    return {
-      target,
-      average: values.length ? average(values) : 0,
-    };
-  });
-
-  const maxAverage = Math.max(...targetAverages.map((item) => item.average), 1);
+  const targetStats = getRollingTargetStats(STATS_WINDOW);
+  const maxAverage = Math.max(...targetStats.map((item) => item.average || 0), 1);
 
   elements.targetBars.className = 'target-bars';
-  elements.targetBars.innerHTML = targetAverages.map((item) => {
-    const widthPercent = (item.average / maxAverage) * 100;
+  elements.targetBars.innerHTML = targetStats.map((item) => {
+    const widthPercent = item.average !== null ? (item.average / maxAverage) * 100 : 0;
     return `
       <div class="target-bar-row">
         <div class="target-name">${escapeHtml(item.target)}</div>
         <div class="bar-track"><div class="bar-fill" style="width: ${widthPercent.toFixed(2)}%"></div></div>
-        <div class="bar-value">${item.average.toFixed(2)}</div>
+        <div class="bar-value">${item.average !== null ? item.average.toFixed(2) : '–'}</div>
+        <div class="bar-best">${item.best !== null ? item.best : '–'}</div>
       </div>
     `;
   }).join('');
 }
 
-function calculateMovingAverages(games, windowSize) {
+function calculateMovingAveragePoints(games, windowSize) {
   return games.map((game, index) => {
-    const start = Math.max(0, index - windowSize + 1);
+    const actualWindow = index + 1 < windowSize ? index + 1 : windowSize;
+    const start = index + 1 < windowSize ? 0 : index - windowSize + 1;
     const slice = games.slice(start, index + 1);
-    return average(slice.map((entry) => entry.totalThrows));
+    return {
+      gameNumber: index + 1,
+      average: average(slice.map((entry) => entry.totalThrows)),
+      isFullWindow: actualWindow === windowSize,
+    };
   });
 }
 
-function renderMovingAverageChart(games) {
+function renderMovingAverageChart() {
+  const games = appData.games;
   if (!games.length) {
     elements.movingAverageChart.className = 'chart-box empty-state';
     elements.movingAverageChart.textContent = 'Noch keine abgeschlossenen Spiele vorhanden.';
     return;
   }
 
-  const values = calculateMovingAverages(games, MOVING_AVERAGE_WINDOW);
+  const pointsData = calculateMovingAveragePoints(games, MOVING_AVERAGE_WINDOW);
+  const values = pointsData.map((item) => item.average);
   const width = 680;
   const height = 260;
   const padding = { top: 18, right: 18, bottom: 32, left: 38 };
@@ -294,15 +376,15 @@ function renderMovingAverageChart(games) {
   const maxValue = Math.max(...values);
   const valueRange = Math.max(1, maxValue - minValue);
 
-  const points = values.map((value, index) => {
-    const x = padding.left + (values.length === 1 ? chartWidth / 2 : (index / (values.length - 1)) * chartWidth);
-    const y = padding.top + ((maxValue - value) / valueRange) * chartHeight;
-    return { x, y };
+  const points = pointsData.map((item, index) => {
+    const x = padding.left + (pointsData.length === 1 ? chartWidth / 2 : (index / (pointsData.length - 1)) * chartWidth);
+    const y = padding.top + ((maxValue - item.average) / valueRange) * chartHeight;
+    return { ...item, x, y };
   });
 
-  const polyline = points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
+  const fullWindowPoints = points.filter((point) => point.isFullWindow);
+  const polyline = fullWindowPoints.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
   const tickValues = [maxValue, minValue + valueRange / 2, minValue];
-
   const gridLines = tickValues.map((tick) => {
     const y = padding.top + ((maxValue - tick) / valueRange) * chartHeight;
     return `
@@ -311,36 +393,45 @@ function renderMovingAverageChart(games) {
     `;
   }).join('');
 
-  const lastAverage = values[values.length - 1];
+  const pointsMarkup = points.map((point) => `
+    <circle class="chart-point${point.isFullWindow ? '' : ' early'}" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="${point.isFullWindow ? 3.6 : 3.2}"></circle>
+  `).join('');
+
+  const latest = points[points.length - 1];
+  const metaText = latest.isFullWindow
+    ? `Aktueller MA: ${latest.average.toFixed(1)} Würfe`
+    : `Aktueller Schnitt: ${latest.average.toFixed(1)} Würfe`;
 
   elements.movingAverageChart.className = 'chart-box';
   elements.movingAverageChart.innerHTML = `
     <div class="chart-meta">
-      <span>Fenster: letzte ${Math.min(MOVING_AVERAGE_WINDOW, games.length)} Spiele</span>
-      <span>Aktueller MA: ${lastAverage.toFixed(1)} Würfe</span>
+      <span>Linie ab Spiel ${MOVING_AVERAGE_WINDOW}</span>
+      <span>${metaText}</span>
     </div>
     <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Moving Average der Gesamtwürfe">
       ${gridLines}
       <line class="chart-axis" x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}"></line>
       <line class="chart-axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${height - padding.bottom}"></line>
-      <polyline class="chart-line" points="${polyline}"></polyline>
+      ${polyline ? `<polyline class="chart-line" points="${polyline}"></polyline>` : ''}
+      ${pointsMarkup}
       <text class="chart-label" x="${padding.left}" y="${height - 8}">1</text>
-      <text class="chart-label" x="${(width - padding.right - 16)}" y="${height - 8}">${games.length}</text>
+      <text class="chart-label" x="${width - padding.right - 16}" y="${height - 8}">${games.length}</text>
     </svg>
   `;
 }
 
 function renderStats() {
-  const games = appData.games;
-  elements.gamesPlayed.textContent = String(games.length);
-  elements.avgTotalThrows.textContent = games.length ? average(games.map((game) => game.totalThrows)).toFixed(1) : '0.0';
-  renderTargetBars(games);
+  const allGames = appData.games;
+  const statsGames = getLastGames(STATS_WINDOW);
+  elements.gamesPlayed.textContent = String(allGames.length);
+  elements.avgTotalThrows.textContent = statsGames.length ? average(statsGames.map((game) => game.totalThrows)).toFixed(1) : '0.0';
+  renderTargetBars();
   statsDirty = false;
 }
 
 function renderHistory() {
   const games = appData.games;
-  renderMovingAverageChart(games);
+  renderMovingAverageChart();
 
   const reversedGames = [...games].reverse();
   if (!reversedGames.length) {
@@ -388,10 +479,11 @@ function importData(event) {
         throw new Error('Ungültiges Format');
       }
       appData = {
-        games: parsed.games.filter((game) => game && typeof game.totalThrows === 'number' && game.throwsPerTarget),
+        games: parsed.games.map(sanitizeGame).filter(Boolean),
       };
       saveData();
       markStatsDirty();
+      renderNextTargetsPreview();
       if (currentTab === 'stats') renderStats();
       if (currentTab === 'history') renderHistory();
       alert('Daten erfolgreich importiert.');
@@ -409,6 +501,7 @@ function clearAllData() {
   appData = { games: [] };
   saveData();
   markStatsDirty();
+  updateGameView();
   if (currentTab === 'stats') renderStats();
   if (currentTab === 'history') renderHistory();
 }
