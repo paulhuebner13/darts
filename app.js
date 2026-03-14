@@ -347,13 +347,7 @@ function renderTargetBars() {
   }
 
   elements.targetBars.className = 'target-bars';
-  elements.targetBars.innerHTML = `
-    <div class="target-bar-header">
-      <div>Ziel</div>
-      <div>Ø letzte 30</div>
-      <div>Ø</div>
-    </div>
-  ` + targetStats.map((item) => {
+  elements.targetBars.innerHTML = targetStats.map((item) => {
     const widthPercent = item.average !== null ? (item.average / maxAverage) * 100 : 0;
     return `
       <div class="target-bar-row">
@@ -435,17 +429,8 @@ function renderMovingAverageChart() {
     <circle class="chart-point" cx="${point.x.toFixed(1)}" cy="${point.pointY.toFixed(1)}" r="3.5"></circle>
   `).join('');
 
-  const latest = points[points.length - 1];
-  const metaText = points.length >= MOVING_AVERAGE_WINDOW
-    ? `MA10 zuletzt: ${latest.average.toFixed(1)} Würfe`
-    : `Noch keine volle MA10-Linie`;
-
   elements.movingAverageChart.className = 'chart-box';
   elements.movingAverageChart.innerHTML = `
-    <div class="chart-meta">
-      <span>Punkte = einzelne Spiele</span>
-      <span>${metaText}</span>
-    </div>
     <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Verlauf der Gesamtwürfe mit Moving Average">
       ${gridLines}
       <line class="chart-axis" x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}"></line>
@@ -607,18 +592,44 @@ function initEvents() {
     tab.addEventListener('click', () => switchTab(tab.dataset.tab));
   });
 
-  const handleHistoryActivation = (event) => {
-    const item = event.target.closest('[data-game-id]');
-    if (!item) return;
-    if (event.type === 'touchend' || event.type === 'pointerup') {
-      event.preventDefault();
-    }
-    openGameDetail(item.dataset.gameId);
-  };
+  let historyPointer = null;
 
-  elements.historyList.addEventListener('click', handleHistoryActivation);
-  elements.historyList.addEventListener('pointerup', handleHistoryActivation);
-  elements.historyList.addEventListener('touchend', handleHistoryActivation, { passive: false });
+  elements.historyList.addEventListener('pointerdown', (event) => {
+    const item = event.target.closest('[data-game-id]');
+    if (!item) {
+      historyPointer = null;
+      return;
+    }
+    historyPointer = {
+      id: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      moved: false,
+    };
+  });
+
+  elements.historyList.addEventListener('pointermove', (event) => {
+    if (!historyPointer || historyPointer.id !== event.pointerId) return;
+    const dx = Math.abs(event.clientX - historyPointer.x);
+    const dy = Math.abs(event.clientY - historyPointer.y);
+    if (dx > 8 || dy > 8) historyPointer.moved = true;
+  });
+
+  elements.historyList.addEventListener('pointerup', (event) => {
+    const item = event.target.closest('[data-game-id]');
+    if (!item || !historyPointer || historyPointer.id !== event.pointerId) return;
+    const shouldOpen = !historyPointer.moved;
+    historyPointer = null;
+    if (shouldOpen) openGameDetail(item.dataset.gameId);
+  });
+
+  elements.historyList.addEventListener('pointercancel', () => {
+    historyPointer = null;
+  });
+
+  elements.historyList.addEventListener('click', (event) => {
+    event.preventDefault();
+  });
 }
 
 function init() {

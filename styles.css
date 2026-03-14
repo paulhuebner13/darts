@@ -280,14 +280,6 @@ button, input, label { font: inherit; }
   border-radius: 18px;
   padding: 12px;
 }
-.chart-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-  color: var(--muted);
-  font-size: 0.92rem;
-}
 .chart-svg {
   width: 100%;
   height: auto;
@@ -313,7 +305,11 @@ button, input, label { font: inherit; }
   font-size: 11px;
 }
 
-.history-list { display: grid; gap: 10px; }
+.history-list {
+  display: grid;
+  gap: 10px;
+  touch-action: pan-y;
+}
 .history-item {
   border: 1px solid var(--border);
   border-radius: 18px;
@@ -401,6 +397,7 @@ button, input, label { font: inherit; }
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   text-align: right;
+  font-size: 0.92rem;
 }
 .next-target-empty {
   color: var(--muted);
@@ -416,6 +413,13 @@ button, input, label { font: inherit; }
 }
 .metrics-card .big-number {
   font-size: clamp(1.35rem, 5.1vw, 2.05rem);
+}
+.metrics-card .small-label,
+.metrics-four .small-label {
+  line-height: 1.14;
+  word-break: normal;
+  overflow-wrap: anywhere;
+  hyphens: auto;
 }
 .history-item {
   appearance: none;
@@ -478,7 +482,7 @@ button, input, label { font: inherit; }
 }
 
 .history-item {
-  touch-action: manipulation;
+  touch-action: pan-y;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -489,14 +493,13 @@ button, input, label { font: inherit; }
   }
 
   .metrics-four .small-label {
-    font-size: 0.72rem;
-    line-height: 1.15;
+    font-size: 0.82rem;
+    line-height: 1.14;
   }
 
   .metrics-four .big-number {
-    font-size: clamp(1.05rem, 4.6vw, 1.5rem);
-    line-height: 1.05;
-    word-break: break-word;
+    font-size: clamp(1.18rem, 5.2vw, 1.62rem);
+    line-height: 1.06;
   }
 
   .metrics-card.metrics-three {
@@ -510,16 +513,16 @@ button, input, label { font: inherit; }
   }
 
   .metrics-card.metrics-three .small-label {
-    font-size: 0.68rem;
-    line-height: 1.1;
+    font-size: 0.8rem;
+    line-height: 1.12;
   }
 
   .metrics-card.metrics-three .big-number {
-    font-size: clamp(0.92rem, 4.1vw, 1.2rem);
-    line-height: 1.05;
-    word-break: break-word;
+    font-size: clamp(1.06rem, 4.7vw, 1.36rem);
+    line-height: 1.08;
   }
 }
+
 
 @media (max-width: 390px) {
   .metrics-four {
@@ -527,18 +530,19 @@ button, input, label { font: inherit; }
   }
 
   .metrics-four .small-label {
-    font-size: 0.66rem;
+    font-size: 0.74rem;
   }
 
   .metrics-four .big-number {
-    font-size: 0.96rem;
+    font-size: 1.06rem;
   }
 
   .metrics-card.metrics-three .small-label {
-    font-size: 0.62rem;
+    font-size: 0.72rem;
   }
 
   .metrics-card.metrics-three .big-number {
-    font-size: 0.84rem;
+    font-size: 0.98rem;
   }
 }
+
