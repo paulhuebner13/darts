@@ -214,14 +214,18 @@ function calculateProjectedTotal() {
   if (progressedCount === 0 || currentGame.totalThrows === 0) return null;
 
   const averages = getTargetAverageMap(STATS_WINDOW);
-  const completedTargets = TARGETS.slice(0, progressedCount);
+  const currentPacePerTarget = currentGame.totalThrows / progressedCount;
   const remainingTargets = TARGETS.slice(progressedCount);
 
-  const completedAverageTotal = completedTargets.reduce((sum, target) => sum + (averages[target] ?? 0), 0);
-  const remainingAverageTotal = remainingTargets.reduce((sum, target) => sum + (averages[target] ?? 0), 0);
+  const projectedRemaining = remainingTargets.reduce((sum, target) => {
+    const historicalAverage = averages[target];
+    const blendedAverage = historicalAverage !== null
+      ? (currentPacePerTarget + historicalAverage) / 2
+      : currentPacePerTarget;
+    return sum + Math.max(1, blendedAverage);
+  }, 0);
 
-  if (completedAverageTotal <= 0) return null;
-  return currentGame.totalThrows + (currentGame.totalThrows / completedAverageTotal) * remainingAverageTotal;
+  return currentGame.totalThrows + projectedRemaining;
 }
 
 function updateGameView() {

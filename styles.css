@@ -315,6 +315,7 @@ button, input, label { font: inherit; }
   border-radius: 18px;
   padding: 14px;
   background: var(--card-2);
+  color: var(--text);
 }
 .history-top {
   display: flex;
