@@ -30,39 +30,28 @@
 
     <main>
       <section id="play" class="view active">
-        <div class="card hero-split-card">
-          <div class="hero-main">
-            <div id="currentTarget" class="hero-target">1</div>
-          </div>
-          <div id="nextTargetsPreview" class="next-targets-preview"></div>
+        <div class="card hero-card">
+          <div id="currentTarget" class="hero-target">1</div>
         </div>
 
-        <div class="card metrics-card stats-grid metrics-three compact">
+        <div class="card overview-single">
           <div>
             <div class="small-label">Gesamtwürfe</div>
             <div id="totalThrows" class="big-number">0</div>
-          </div>
-          <div>
-            <div class="small-label">Ø Würfe pro Treffer</div>
-            <div id="avgThrowsPerHit" class="big-number">0.0</div>
-          </div>
-          <div>
-            <div class="small-label">Prognose</div>
-            <div id="projectedTotal" class="big-number">–</div>
           </div>
         </div>
 
         <div class="card play-card">
           <div class="throw-circle-grid" aria-label="Treffer in dieser Aufnahme">
-            <label id="throwCircle1" class="throw-circle">
+            <label class="throw-circle">
               <input type="checkbox" id="throw1" />
               <span>1</span>
             </label>
-            <label id="throwCircle2" class="throw-circle">
+            <label class="throw-circle">
               <input type="checkbox" id="throw2" />
               <span>2</span>
             </label>
-            <label id="throwCircle3" class="throw-circle">
+            <label class="throw-circle">
               <input type="checkbox" id="throw3" />
               <span>3</span>
             </label>
@@ -80,22 +69,14 @@
       <section id="stats" class="view">
         <div class="card">
           <div class="section-title">Überblick</div>
-          <div class="stats-grid compact metrics-four">
+          <div class="stats-grid compact">
             <div>
               <div class="small-label">Gespielte Spiele</div>
               <div id="gamesPlayed" class="big-number">0</div>
             </div>
             <div>
-              <div class="small-label">Ø Gesamtwürfe letzte 30</div>
+              <div class="small-label">Ø Gesamtwürfe</div>
               <div id="avgTotalThrows" class="big-number">0.0</div>
-            </div>
-            <div>
-              <div class="small-label">Highscore gesamt</div>
-              <div id="bestOverall" class="big-number">–</div>
-            </div>
-            <div>
-              <div class="small-label">Longest Streak</div>
-              <div id="longestStreak" class="big-number">–</div>
             </div>
           </div>
         </div>
@@ -108,7 +89,7 @@
 
       <section id="history" class="view">
         <div class="card">
-          <div class="section-title">Verlauf aller Spiele</div>
+          <div class="section-title">Moving Average der letzten 10 Spiele</div>
           <div id="movingAverageChart" class="chart-box empty-state">Noch keine abgeschlossenen Spiele vorhanden.</div>
         </div>
 
@@ -131,6 +112,11 @@
             <button id="clearDataBtn" class="ghost-button danger" type="button">Alle gespeicherten Daten löschen</button>
           </div>
         </div>
+
+        <div class="card">
+          <div class="section-title">Hinweis</div>
+          <p class="muted">Für GitHub Pages reicht es, diese Dateien in ein Repository zu legen. Danach kannst du die Seite am Handy in Chrome öffnen und zum Startbildschirm hinzufügen.</p>
+        </div>
       </section>
     </main>
   </div>
@@ -141,18 +127,6 @@
       <p id="finishSummary"></p>
       <div class="button-row">
         <button id="closeDialogBtn" class="primary-button" type="button">OK</button>
-      </div>
-    </div>
-  </dialog>
-
-  <dialog id="gameDetailDialog" class="finish-dialog">
-    <div class="dialog-content detail-dialog-content">
-      <h2 id="detailTitle">Spiel</h2>
-      <p id="detailMeta" class="muted"></p>
-      <div id="detailBars" class="target-bars"></div>
-      <div class="button-row stacked detail-actions">
-        <button id="deleteGameBtn" class="ghost-button danger" type="button">Dieses Spiel löschen</button>
-        <button id="closeDetailDialogBtn" class="primary-button" type="button">Schließen</button>
       </div>
     </div>
   </dialog>

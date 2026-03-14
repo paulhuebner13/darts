@@ -5,8 +5,6 @@ const TARGETS = [
   '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', 'Bull'
 ];
 const STATS_WINDOW = 30;
-const PREVIEW_WINDOW = 30;
-const NEXT_TARGET_COUNT = 3;
 const MOVING_AVERAGE_WINDOW = 10;
 const FLASH_DURATION_MS = 220;
 
@@ -15,7 +13,6 @@ const elements = {
   nextTargetsPreview: document.getElementById('nextTargetsPreview'),
   totalThrows: document.getElementById('totalThrows'),
   avgThrowsPerHit: document.getElementById('avgThrowsPerHit'),
-  projectedTotal: document.getElementById('projectedTotal'),
   throw1: document.getElementById('throw1'),
   throw2: document.getElementById('throw2'),
   throw3: document.getElementById('throw3'),
@@ -25,7 +22,6 @@ const elements = {
   gamesPlayed: document.getElementById('gamesPlayed'),
   avgTotalThrows: document.getElementById('avgTotalThrows'),
   bestOverall: document.getElementById('bestOverall'),
-  longestStreak: document.getElementById('longestStreak'),
   targetBars: document.getElementById('targetBars'),
   movingAverageChart: document.getElementById('movingAverageChart'),
   historyList: document.getElementById('historyList'),
@@ -35,12 +31,6 @@ const elements = {
   finishDialog: document.getElementById('finishDialog'),
   finishSummary: document.getElementById('finishSummary'),
   closeDialogBtn: document.getElementById('closeDialogBtn'),
-  gameDetailDialog: document.getElementById('gameDetailDialog'),
-  detailTitle: document.getElementById('detailTitle'),
-  detailMeta: document.getElementById('detailMeta'),
-  detailBars: document.getElementById('detailBars'),
-  deleteGameBtn: document.getElementById('deleteGameBtn'),
-  closeDetailDialogBtn: document.getElementById('closeDetailDialogBtn'),
   themeToggle: document.getElementById('themeToggle'),
   tabs: Array.from(document.querySelectorAll('.tab')),
   views: Array.from(document.querySelectorAll('.view')),
@@ -55,9 +45,10 @@ const throwCircles = [
 
 let appData = loadData();
 let currentGame = createEmptyGame();
-let currentTab = 'play';
 let finishTimeoutId = null;
-let selectedGameId = null;
+let currentTab = 'play';
+let statsDirty = true;
+let historyDirty = true;
 
 function createEmptyGame() {
   return {
@@ -68,37 +59,12 @@ function createEmptyGame() {
   };
 }
 
-function sanitizeThrowsPerTarget(raw) {
-  const sanitized = Object.fromEntries(TARGETS.map((target) => [target, 0]));
-  if (!raw || typeof raw !== 'object') return sanitized;
-  TARGETS.forEach((target) => {
-    const value = raw[target];
-    if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
-      sanitized[target] = value;
-    }
-  });
-  return sanitized;
-}
-
-function sanitizeGame(game) {
-  if (!game || typeof game !== 'object') return null;
-  const totalThrows = Number(game.totalThrows);
-  if (!Number.isFinite(totalThrows) || totalThrows < 0) return null;
-  return {
-    id: typeof game.id === 'string' && game.id ? game.id : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    finishedAt: Number.isFinite(Number(game.finishedAt)) ? Number(game.finishedAt) : Date.now(),
-    totalThrows,
-    throwsPerTarget: sanitizeThrowsPerTarget(game.throwsPerTarget),
-  };
-}
-
 function loadData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { games: [] };
     const parsed = JSON.parse(raw);
-    const games = Array.isArray(parsed?.games) ? parsed.games.map(sanitizeGame).filter(Boolean) : [];
-    return { games };
+    return parsed && Array.isArray(parsed.games) ? parsed : { games: [] };
   } catch {
     return { games: [] };
   }
@@ -121,16 +87,23 @@ function switchTab(tabId) {
   currentTab = tabId;
   elements.tabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.tab === tabId));
   elements.views.forEach((view) => view.classList.toggle('active', view.id === tabId));
-  if (tabId === 'stats') renderStats();
-  if (tabId === 'history') renderHistory();
+
+  if (tabId === 'stats' && statsDirty) renderStats();
+  if (tabId === 'history' && historyDirty) renderHistory();
 }
 
-function average(values) {
-  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+function markStatsDirty() {
+  statsDirty = true;
+  historyDirty = true;
 }
 
 function getLastGames(limit) {
   return appData.games.slice(-limit);
+}
+
+function average(values) {
+  if (!values.length) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 function formatDate(timestamp) {
@@ -173,78 +146,65 @@ function restoreFromSnapshot(snapshot) {
   currentGame.throwsPerTarget = { ...snapshot.throwsPerTarget };
 }
 
-function getTargetAverageMap(limit = STATS_WINDOW) {
-  const games = getLastGames(limit);
-  return Object.fromEntries(TARGETS.map((target) => {
-    const values = games
-      .map((game) => game.throwsPerTarget?.[target])
-      .filter((value) => typeof value === 'number' && value > 0);
-    return [target, values.length ? average(values) : null];
-  }));
+function flashMissedThrows(selectedHits) {
+  throwCircles.forEach((circle, index) => {
+    if (!circle) return;
+    circle.classList.remove('miss-flash');
+    if (!selectedHits[index]) {
+      void circle.offsetWidth;
+      circle.classList.add('miss-flash');
+      window.setTimeout(() => circle.classList.remove('miss-flash'), FLASH_DURATION_MS);
+    }
+  });
 }
 
-function getCurrentTargetPreviewData() {
-  const averages = getTargetAverageMap(PREVIEW_WINDOW);
-  return TARGETS.slice(currentGame.currentIndex, currentGame.currentIndex + NEXT_TARGET_COUNT).map((target) => ({
-    target,
-    average: averages[target],
-  }));
+function getRollingTargetStats(limit) {
+  const games = getLastGames(limit);
+  return TARGETS.map((target) => {
+    const values = games
+      .map((game) => game.throwsPerTarget?.[target])
+      .filter((value) => typeof value === 'number');
+
+    return {
+      target,
+      average: values.length ? average(values) : null,
+    };
+  });
 }
 
 function renderNextTargetsPreview() {
-  const previewItems = getCurrentTargetPreviewData();
-  if (!previewItems.length) {
-    elements.nextTargetsPreview.innerHTML = '<div class="next-target-empty">Fertig</div>';
+  const statsByTarget = new Map(getRollingTargetStats(STATS_WINDOW).map((item) => [item.target, item]));
+  const previewTargets = TARGETS.slice(currentGame.currentIndex, currentGame.currentIndex + 3);
+
+  if (!previewTargets.length) {
+    elements.nextTargetsPreview.className = 'next-targets-preview empty-mini';
+    elements.nextTargetsPreview.textContent = 'Fertig';
     return;
   }
 
-  elements.nextTargetsPreview.innerHTML = previewItems.map((item) => `
-    <div class="next-target-row">
-      <div class="next-target-label">${escapeHtml(item.target)}</div>
-      <div class="next-target-value">${item.average !== null ? item.average.toFixed(2) : '–'}</div>
-    </div>
-  `).join('');
-}
-
-function calculateProjectedTotal() {
-  const progressedCount = currentGame.currentIndex;
-  if (progressedCount === 0 || currentGame.totalThrows === 0) return null;
-
-  const averages = getTargetAverageMap(STATS_WINDOW);
-  const completedTargets = TARGETS.slice(0, progressedCount);
-  const remainingTargets = TARGETS.slice(progressedCount);
-
-  const completedAverageTotal = completedTargets.reduce((sum, target) => sum + (averages[target] ?? 0), 0);
-  const remainingAverageTotal = remainingTargets.reduce((sum, target) => sum + (averages[target] ?? 0), 0);
-
-  if (completedAverageTotal <= 0) return null;
-  return currentGame.totalThrows + (currentGame.totalThrows / completedAverageTotal) * remainingAverageTotal;
+  elements.nextTargetsPreview.className = 'next-targets-preview';
+  elements.nextTargetsPreview.innerHTML = previewTargets.map((target) => {
+    const stat = statsByTarget.get(target);
+    const valueText = stat && stat.average !== null ? `${stat.average.toFixed(2)} Ø` : '–';
+    return `
+      <div class="next-target-row">
+        <div class="next-target-label">${escapeHtml(target)}</div>
+        <div class="next-target-value">${valueText}</div>
+      </div>
+    `;
+  }).join('');
 }
 
 function updateGameView() {
   const finished = currentGame.currentIndex >= TARGETS.length;
+  const hitsCompleted = currentGame.currentIndex;
+  const avgThrowsPerHit = hitsCompleted > 0 ? currentGame.totalThrows / hitsCompleted : 0;
+
   elements.currentTarget.textContent = finished ? 'Fertig' : TARGETS[currentGame.currentIndex];
   elements.totalThrows.textContent = String(currentGame.totalThrows);
-
-  const hitsSoFar = currentGame.currentIndex;
-  const avgThrowsPerHit = hitsSoFar > 0 ? currentGame.totalThrows / hitsSoFar : 0;
-  elements.avgThrowsPerHit.textContent = hitsSoFar > 0 ? avgThrowsPerHit.toFixed(2) : '0.0';
-
-  const projectedTotal = calculateProjectedTotal();
-  elements.projectedTotal.textContent = projectedTotal !== null ? projectedTotal.toFixed(1) : '–';
-
+  elements.avgThrowsPerHit.textContent = avgThrowsPerHit ? avgThrowsPerHit.toFixed(2) : '0.0';
   elements.continueBtn.disabled = finished;
   renderNextTargetsPreview();
-}
-
-function flashMissedThrows(selectedHits) {
-  selectedHits.forEach((hit, index) => {
-    if (hit) return;
-    throwCircles[index].classList.add('miss-flash');
-    window.setTimeout(() => {
-      throwCircles[index].classList.remove('miss-flash');
-    }, FLASH_DURATION_MS);
-  });
 }
 
 function completeGame() {
@@ -259,8 +219,10 @@ function completeGame() {
 
   appData.games.push(gameRecord);
   saveData();
-  renderStats();
-  renderHistory();
+  markStatsDirty();
+
+  if (currentTab === 'stats') renderStats();
+  if (currentTab === 'history') renderHistory();
 
   elements.finishSummary.textContent = `Du hast ${currentGame.totalThrows} Würfe gebraucht.`;
   if (typeof elements.finishDialog.showModal === 'function') {
@@ -283,9 +245,9 @@ function applyTurn() {
 
   selectedHits.forEach((hit) => {
     if (currentGame.currentIndex >= TARGETS.length) return;
-    const target = TARGETS[currentGame.currentIndex];
+    const currentTarget = TARGETS[currentGame.currentIndex];
     currentGame.totalThrows += 1;
-    currentGame.throwsPerTarget[target] += 1;
+    currentGame.throwsPerTarget[currentTarget] += 1;
     if (hit) currentGame.currentIndex += 1;
   });
 
@@ -312,7 +274,10 @@ function undoLastAction() {
 
 function startNewGame() {
   const hasProgress = currentGame.totalThrows > 0 && currentGame.currentIndex < TARGETS.length;
-  if (hasProgress && !window.confirm('Aktuelles Spiel wirklich verwerfen und neu starten?')) return;
+  if (hasProgress) {
+    const confirmed = window.confirm('Aktuelles Spiel wirklich verwerfen und neu starten?');
+    if (!confirmed) return;
+  }
   if (finishTimeoutId) {
     window.clearTimeout(finishTimeoutId);
     finishTimeoutId = null;
@@ -322,32 +287,25 @@ function startNewGame() {
   updateGameView();
 }
 
-function getRollingTargetStats(limit = STATS_WINDOW) {
-  const games = getLastGames(limit);
-  return TARGETS.map((target) => {
-    const values = games
-      .map((game) => game.throwsPerTarget?.[target])
-      .filter((value) => typeof value === 'number' && value > 0);
-    return {
-      target,
-      average: values.length ? average(values) : null,
-    };
-  });
-}
-
 function renderTargetBars() {
-  const targetStats = getRollingTargetStats(STATS_WINDOW);
-  const maxAverage = Math.max(...targetStats.map((item) => item.average || 0), 1);
-  const anyData = targetStats.some((item) => item.average !== null);
-
-  if (!anyData) {
+  const games = getLastGames(STATS_WINDOW);
+  if (!games.length) {
     elements.targetBars.className = 'target-bars empty-state';
     elements.targetBars.textContent = 'Noch keine abgeschlossenen Spiele vorhanden.';
     return;
   }
 
+  const targetStats = getRollingTargetStats(STATS_WINDOW);
+  const maxAverage = Math.max(...targetStats.map((item) => item.average || 0), 1);
+
   elements.targetBars.className = 'target-bars';
-  elements.targetBars.innerHTML = targetStats.map((item) => {
+  elements.targetBars.innerHTML = `
+    <div class="target-bar-header">
+      <div>Ziel</div>
+      <div>Ø letzte 30</div>
+      <div>Ø</div>
+    </div>
+  ` + targetStats.map((item) => {
     const widthPercent = item.average !== null ? (item.average / maxAverage) * 100 : 0;
     return `
       <div class="target-bar-row">
@@ -359,30 +317,14 @@ function renderTargetBars() {
   }).join('');
 }
 
-function getLongestStreak() {
-  return appData.games.reduce((best, game) => {
-    let streak = 0;
-    let gameBest = 0;
-    TARGETS.forEach((target) => {
-      if (game.throwsPerTarget?.[target] === 1) {
-        streak += 1;
-        gameBest = Math.max(gameBest, streak);
-      } else {
-        streak = 0;
-      }
-    });
-    return Math.max(best, gameBest);
-  }, 0);
-}
-
-function buildMovingAverageSeries(games, windowSize) {
+function calculateMovingAveragePoints(games, windowSize) {
   return games.map((game, index) => {
     const hasFullWindow = index + 1 >= windowSize;
-    const slice = hasFullWindow ? games.slice(index - windowSize + 1, index + 1) : games.slice(0, index + 1);
+    const slice = hasFullWindow ? games.slice(index - windowSize + 1, index + 1) : null;
     return {
       gameNumber: index + 1,
       pointValue: game.totalThrows,
-      average: average(slice.map((entry) => entry.totalThrows)),
+      average: hasFullWindow ? average(slice.map((entry) => entry.totalThrows)) : null,
       isFullWindow: hasFullWindow,
     };
   });
@@ -396,8 +338,8 @@ function renderMovingAverageChart() {
     return;
   }
 
-  const series = buildMovingAverageSeries(games, MOVING_AVERAGE_WINDOW);
-  const values = series.flatMap((item) => item.isFullWindow ? [item.pointValue, item.average] : [item.pointValue]);
+  const pointsData = calculateMovingAveragePoints(games, MOVING_AVERAGE_WINDOW);
+  const values = pointsData.flatMap((item) => item.isFullWindow ? [item.pointValue, item.average] : [item.pointValue]);
   const width = 680;
   const height = 260;
   const padding = { top: 18, right: 18, bottom: 32, left: 38 };
@@ -407,15 +349,15 @@ function renderMovingAverageChart() {
   const maxValue = Math.max(...values);
   const valueRange = Math.max(1, maxValue - minValue);
 
-  const points = series.map((item, index) => {
-    const x = padding.left + (series.length === 1 ? chartWidth / 2 : (index / (series.length - 1)) * chartWidth);
+  const points = pointsData.map((item, index) => {
+    const x = padding.left + (pointsData.length === 1 ? chartWidth / 2 : (index / (pointsData.length - 1)) * chartWidth);
     const pointY = padding.top + ((maxValue - item.pointValue) / valueRange) * chartHeight;
-    const avgY = padding.top + ((maxValue - item.average) / valueRange) * chartHeight;
+    const avgY = item.isFullWindow ? padding.top + ((maxValue - item.average) / valueRange) * chartHeight : null;
     return { ...item, x, pointY, avgY };
   });
 
-  const linePoints = points.filter((point) => point.isFullWindow);
-  const polyline = linePoints.map((point) => `${point.x.toFixed(1)},${point.avgY.toFixed(1)}`).join(' ');
+  const fullWindowPoints = points.filter((point) => point.isFullWindow);
+  const polyline = fullWindowPoints.map((point) => `${point.x.toFixed(1)},${point.avgY.toFixed(1)}`).join(' ');
   const tickValues = [maxValue, minValue + valueRange / 2, minValue];
   const gridLines = tickValues.map((tick) => {
     const y = padding.top + ((maxValue - tick) / valueRange) * chartHeight;
@@ -425,18 +367,23 @@ function renderMovingAverageChart() {
     `;
   }).join('');
 
-  const pointsMarkup = points.map((point) => `
-    <circle class="chart-point" cx="${point.x.toFixed(1)}" cy="${point.pointY.toFixed(1)}" r="3.5"></circle>
-  `).join('');
+  const latestFullWindow = [...points].reverse().find((point) => point.isFullWindow);
+  const metaText = latestFullWindow
+    ? `MA10 zuletzt: ${latestFullWindow.average.toFixed(1)} Würfe`
+    : `MA10 ab Spiel ${MOVING_AVERAGE_WINDOW}`;
 
   elements.movingAverageChart.className = 'chart-box';
   elements.movingAverageChart.innerHTML = `
+    <div class="chart-meta">
+      <span>Punkte = alle Spiele</span>
+      <span>${metaText}</span>
+    </div>
     <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Verlauf der Gesamtwürfe mit Moving Average">
       ${gridLines}
       <line class="chart-axis" x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}"></line>
       <line class="chart-axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${height - padding.bottom}"></line>
       ${polyline ? `<polyline class="chart-line moving-average-line" points="${polyline}"></polyline>` : ''}
-      ${pointsMarkup}
+      ${points.map((point) => `<circle class="chart-point" cx="${point.x.toFixed(1)}" cy="${point.pointY.toFixed(1)}" r="3.5"></circle>`).join('')}
       <text class="chart-label" x="${padding.left}" y="${height - 8}">1</text>
       <text class="chart-label" x="${width - padding.right - 16}" y="${height - 8}">${games.length}</text>
     </svg>
@@ -445,13 +392,12 @@ function renderMovingAverageChart() {
 
 function renderStats() {
   const allGames = appData.games;
-  const statsGames = getLastGames(STATS_WINDOW);
+  const games = getLastGames(STATS_WINDOW);
   elements.gamesPlayed.textContent = String(allGames.length);
-  elements.avgTotalThrows.textContent = statsGames.length ? average(statsGames.map((game) => game.totalThrows)).toFixed(1) : '0.0';
-  elements.bestOverall.textContent = allGames.length ? String(Math.min(...allGames.map((game) => game.totalThrows))) : '–';
-  const longest = getLongestStreak();
-  elements.longestStreak.textContent = longest ? String(longest) : '–';
+  elements.avgTotalThrows.textContent = games.length ? average(games.map((game) => game.totalThrows)).toFixed(1) : '0.0';
+  elements.bestOverall.textContent = allGames.length ? `${Math.min(...allGames.map((game) => game.totalThrows))}` : '–';
   renderTargetBars();
+  statsDirty = false;
 }
 
 function renderHistory() {
@@ -462,66 +408,21 @@ function renderHistory() {
   if (!reversedGames.length) {
     elements.historyList.className = 'history-list empty-state';
     elements.historyList.textContent = 'Noch keine Spiele gespeichert.';
+    historyDirty = false;
     return;
   }
 
   elements.historyList.className = 'history-list';
   elements.historyList.innerHTML = reversedGames.map((game, index) => `
-    <button class="history-item" type="button" data-game-id="${escapeHtml(game.id)}">
+    <article class="history-item">
       <div class="history-top">
         <strong>Spiel ${games.length - index}</strong>
         <strong>${game.totalThrows} Würfe</strong>
       </div>
       <div class="history-meta">${formatDate(game.finishedAt)}</div>
-    </button>
+    </article>
   `).join('');
-}
-
-function renderDetailBars(game) {
-  const maxThrows = Math.max(...TARGETS.map((target) => game.throwsPerTarget?.[target] || 0), 1);
-  elements.detailBars.innerHTML = `
-    <div class="target-bar-header">
-      <div>Ziel</div>
-      <div>Würfe</div>
-      <div>#</div>
-    </div>
-  ` + TARGETS.map((target) => {
-    const value = game.throwsPerTarget?.[target] || 0;
-    const widthPercent = (value / maxThrows) * 100;
-    return `
-      <div class="target-bar-row">
-        <div class="target-name">${escapeHtml(target)}</div>
-        <div class="bar-track"><div class="bar-fill" style="width: ${widthPercent.toFixed(2)}%"></div></div>
-        <div class="bar-value">${value}</div>
-      </div>
-    `;
-  }).join('');
-}
-
-function openGameDetail(gameId) {
-  const game = appData.games.find((entry) => entry.id === gameId);
-  if (!game) return;
-  selectedGameId = gameId;
-  const gameIndex = appData.games.findIndex((entry) => entry.id === gameId) + 1;
-  elements.detailTitle.textContent = `Spiel ${gameIndex}`;
-  elements.detailMeta.textContent = `${formatDate(game.finishedAt)} • ${game.totalThrows} Würfe gesamt`;
-  renderDetailBars(game);
-  if (typeof elements.gameDetailDialog.showModal === 'function') {
-    elements.gameDetailDialog.showModal();
-  }
-}
-
-function deleteSelectedGame() {
-  if (!selectedGameId) return;
-  const game = appData.games.find((entry) => entry.id === selectedGameId);
-  if (!game) return;
-  if (!window.confirm('Dieses Spiel wirklich löschen?')) return;
-  appData.games = appData.games.filter((entry) => entry.id !== selectedGameId);
-  saveData();
-  renderStats();
-  renderHistory();
-  selectedGameId = null;
-  elements.gameDetailDialog.close();
+  historyDirty = false;
 }
 
 function exportData() {
@@ -540,37 +441,44 @@ function exportData() {
 function importData(event) {
   const file = event.target.files?.[0];
   if (!file) return;
+
   const reader = new FileReader();
   reader.onload = () => {
     try {
       const parsed = JSON.parse(String(reader.result));
       if (!parsed || !Array.isArray(parsed.games)) throw new Error('Ungültiges Format');
-      appData = { games: parsed.games.map(sanitizeGame).filter(Boolean) };
+      appData = parsed;
       saveData();
-      renderStats();
-      renderHistory();
+      markStatsDirty();
+      if (currentTab === 'stats') renderStats();
+      if (currentTab === 'history') renderHistory();
       updateGameView();
       alert('Daten erfolgreich importiert.');
     } catch {
-      alert('Import fehlgeschlagen. Bitte eine gültige JSON-Datei verwenden.');
+      alert('Import fehlgeschlagen. Bitte eine gültige JSON-Datei auswählen.');
+    } finally {
+      event.target.value = '';
     }
-    event.target.value = '';
   };
   reader.readAsText(file);
 }
 
 function clearAllData() {
-  if (!window.confirm('Wirklich alle gespeicherten Daten löschen?')) return;
+  const confirmed = window.confirm('Wirklich alle gespeicherten Spiele löschen?');
+  if (!confirmed) return;
   appData = { games: [] };
   saveData();
-  renderStats();
-  renderHistory();
+  markStatsDirty();
+  if (currentTab === 'stats') renderStats();
+  if (currentTab === 'history') renderHistory();
   updateGameView();
 }
 
 function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
   }
 }
 
@@ -582,8 +490,6 @@ function initEvents() {
   elements.importInput.addEventListener('change', importData);
   elements.clearDataBtn.addEventListener('click', clearAllData);
   elements.closeDialogBtn.addEventListener('click', () => elements.finishDialog.close());
-  elements.closeDetailDialogBtn.addEventListener('click', () => elements.gameDetailDialog.close());
-  elements.deleteGameBtn.addEventListener('click', deleteSelectedGame);
   elements.themeToggle.addEventListener('click', () => {
     const newTheme = document.body.classList.contains('dark') ? 'light' : 'dark';
     applyTheme(newTheme);
@@ -591,53 +497,13 @@ function initEvents() {
   elements.tabs.forEach((tab) => {
     tab.addEventListener('click', () => switchTab(tab.dataset.tab));
   });
-
-  let historyPointer = null;
-
-  elements.historyList.addEventListener('pointerdown', (event) => {
-    const item = event.target.closest('[data-game-id]');
-    if (!item) {
-      historyPointer = null;
-      return;
-    }
-    historyPointer = {
-      id: event.pointerId,
-      x: event.clientX,
-      y: event.clientY,
-      moved: false,
-    };
-  });
-
-  elements.historyList.addEventListener('pointermove', (event) => {
-    if (!historyPointer || historyPointer.id !== event.pointerId) return;
-    const dx = Math.abs(event.clientX - historyPointer.x);
-    const dy = Math.abs(event.clientY - historyPointer.y);
-    if (dx > 8 || dy > 8) historyPointer.moved = true;
-  });
-
-  elements.historyList.addEventListener('pointerup', (event) => {
-    const item = event.target.closest('[data-game-id]');
-    if (!item || !historyPointer || historyPointer.id !== event.pointerId) return;
-    const shouldOpen = !historyPointer.moved;
-    historyPointer = null;
-    if (shouldOpen) openGameDetail(item.dataset.gameId);
-  });
-
-  elements.historyList.addEventListener('pointercancel', () => {
-    historyPointer = null;
-  });
-
-  elements.historyList.addEventListener('click', (event) => {
-    event.preventDefault();
-  });
 }
 
 function init() {
   applyTheme(loadTheme());
   initEvents();
-  renderStats();
-  renderHistory();
   updateGameView();
+  switchTab('play');
   registerServiceWorker();
 }
 
