@@ -606,11 +606,19 @@ function initEvents() {
   elements.tabs.forEach((tab) => {
     tab.addEventListener('click', () => switchTab(tab.dataset.tab));
   });
-  elements.historyList.addEventListener('click', (event) => {
+
+  const handleHistoryActivation = (event) => {
     const item = event.target.closest('[data-game-id]');
     if (!item) return;
+    if (event.type === 'touchend' || event.type === 'pointerup') {
+      event.preventDefault();
+    }
     openGameDetail(item.dataset.gameId);
-  });
+  };
+
+  elements.historyList.addEventListener('click', handleHistoryActivation);
+  elements.historyList.addEventListener('pointerup', handleHistoryActivation);
+  elements.historyList.addEventListener('touchend', handleHistoryActivation, { passive: false });
 }
 
 function init() {

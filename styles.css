@@ -469,3 +469,76 @@ button, input, label { font: inherit; }
   .metrics-card .small-label { font-size: 0.72rem; }
   .metrics-card .big-number { font-size: 1.02rem; }
 }
+
+
+/* Mobile layout fixes */
+.metrics-four > div,
+.metrics-three > div {
+  min-width: 0;
+}
+
+.history-item {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 640px) {
+  .metrics-four {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px;
+  }
+
+  .metrics-four .small-label {
+    font-size: 0.72rem;
+    line-height: 1.15;
+  }
+
+  .metrics-four .big-number {
+    font-size: clamp(1.05rem, 4.6vw, 1.5rem);
+    line-height: 1.05;
+    word-break: break-word;
+  }
+
+  .metrics-card.metrics-three {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  .metrics-card.metrics-three > div {
+    min-width: 0;
+  }
+
+  .metrics-card.metrics-three .small-label {
+    font-size: 0.68rem;
+    line-height: 1.1;
+  }
+
+  .metrics-card.metrics-three .big-number {
+    font-size: clamp(0.92rem, 4.1vw, 1.2rem);
+    line-height: 1.05;
+    word-break: break-word;
+  }
+}
+
+@media (max-width: 390px) {
+  .metrics-four {
+    gap: 8px;
+  }
+
+  .metrics-four .small-label {
+    font-size: 0.66rem;
+  }
+
+  .metrics-four .big-number {
+    font-size: 0.96rem;
+  }
+
+  .metrics-card.metrics-three .small-label {
+    font-size: 0.62rem;
+  }
+
+  .metrics-card.metrics-three .big-number {
+    font-size: 0.84rem;
+  }
+}
