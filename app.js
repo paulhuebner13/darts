@@ -58,7 +58,6 @@ let currentGame = createEmptyGame();
 let currentTab = 'play';
 let finishTimeoutId = null;
 let selectedGameId = null;
-let detailDialogReadyAt = 0;
 
 function createEmptyGame() {
   return {
@@ -115,8 +114,6 @@ function loadTheme() {
 
 function applyTheme(theme) {
   document.body.classList.toggle('dark', theme === 'dark');
-  const themeMeta = document.querySelector('meta[name="theme-color"]');
-  if (themeMeta) themeMeta.setAttribute('content', theme === 'dark' ? '#111827' : '#f3f4f6');
   localStorage.setItem(THEME_KEY, theme);
 }
 
@@ -214,18 +211,14 @@ function calculateProjectedTotal() {
   if (progressedCount === 0 || currentGame.totalThrows === 0) return null;
 
   const averages = getTargetAverageMap(STATS_WINDOW);
-  const currentPacePerTarget = currentGame.totalThrows / progressedCount;
+  const completedTargets = TARGETS.slice(0, progressedCount);
   const remainingTargets = TARGETS.slice(progressedCount);
 
-  const projectedRemaining = remainingTargets.reduce((sum, target) => {
-    const historicalAverage = averages[target];
-    const blendedAverage = historicalAverage !== null
-      ? (currentPacePerTarget + historicalAverage) / 2
-      : currentPacePerTarget;
-    return sum + Math.max(1, blendedAverage);
-  }, 0);
+  const completedAverageTotal = completedTargets.reduce((sum, target) => sum + (averages[target] ?? 0), 0);
+  const remainingAverageTotal = remainingTargets.reduce((sum, target) => sum + (averages[target] ?? 0), 0);
 
-  return currentGame.totalThrows + projectedRemaining;
+  if (completedAverageTotal <= 0) return null;
+  return currentGame.totalThrows + (currentGame.totalThrows / completedAverageTotal) * remainingAverageTotal;
 }
 
 function updateGameView() {
@@ -371,12 +364,10 @@ function getLongestStreak() {
     let streak = 0;
     let gameBest = 0;
     TARGETS.forEach((target) => {
-      if (game.throwsPerTarget?.[target] === 1) {
-        streak += 1;
-        gameBest = Math.max(gameBest, streak);
-      } else {
-        streak = 0;
-      }
+      const throwsNeeded = game.throwsPerTarget?.[target] || 0;
+      if (throwsNeeded <= 0) return;
+      streak = throwsNeeded === 1 ? streak + 1 : 1;
+      gameBest = Math.max(gameBest, streak);
     });
     return Math.max(best, gameBest);
   }, 0);
@@ -486,7 +477,13 @@ function renderHistory() {
 
 function renderDetailBars(game) {
   const maxThrows = Math.max(...TARGETS.map((target) => game.throwsPerTarget?.[target] || 0), 1);
-  elements.detailBars.innerHTML = TARGETS.map((target) => {
+  elements.detailBars.innerHTML = `
+    <div class="target-bar-header">
+      <div>Ziel</div>
+      <div>Würfe</div>
+      <div>#</div>
+    </div>
+  ` + TARGETS.map((target) => {
     const value = game.throwsPerTarget?.[target] || 0;
     const widthPercent = (value / maxThrows) * 100;
     return `
@@ -507,19 +504,12 @@ function openGameDetail(gameId) {
   elements.detailTitle.textContent = `Spiel ${gameIndex}`;
   elements.detailMeta.textContent = `${formatDate(game.finishedAt)} • ${game.totalThrows} Würfe gesamt`;
   renderDetailBars(game);
-  detailDialogReadyAt = performance.now() + 350;
   if (typeof elements.gameDetailDialog.showModal === 'function') {
     elements.gameDetailDialog.showModal();
   }
 }
 
-
-function detailDialogInteractionLocked() {
-  return performance.now() < detailDialogReadyAt;
-}
-
 function deleteSelectedGame() {
-  if (detailDialogInteractionLocked()) return;
   if (!selectedGameId) return;
   const game = appData.games.find((entry) => entry.id === selectedGameId);
   if (!game) return;
@@ -590,23 +580,8 @@ function initEvents() {
   elements.importInput.addEventListener('change', importData);
   elements.clearDataBtn.addEventListener('click', clearAllData);
   elements.closeDialogBtn.addEventListener('click', () => elements.finishDialog.close());
-  elements.closeDetailDialogBtn.addEventListener('click', (event) => {
-    if (detailDialogInteractionLocked()) {
-      event.preventDefault();
-      return;
-    }
-    elements.gameDetailDialog.close();
-  });
+  elements.closeDetailDialogBtn.addEventListener('click', () => elements.gameDetailDialog.close());
   elements.deleteGameBtn.addEventListener('click', deleteSelectedGame);
-  ['pointerdown', 'pointerup', 'click'].forEach((eventName) => {
-    elements.gameDetailDialog.addEventListener(eventName, (event) => {
-      if (!detailDialogInteractionLocked()) return;
-      if (event.target.closest('.detail-actions')) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    }, true);
-  });
   elements.themeToggle.addEventListener('click', () => {
     const newTheme = document.body.classList.contains('dark') ? 'light' : 'dark';
     applyTheme(newTheme);
