@@ -315,6 +315,7 @@ button, input, label { font: inherit; }
   border-radius: 18px;
   padding: 14px;
   background: var(--card-2);
+  color: var(--text);
 }
 .history-top {
   display: flex;
@@ -546,3 +547,33 @@ button, input, label { font: inherit; }
   }
 }
 
+
+
+.throw-circle.miss-flash span {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+  animation: missFlashPulse 0.22s ease-out;
+}
+
+@keyframes missFlashPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+
+.moving-average-line {
+  stroke: var(--danger);
+}
+
+.target-bar-header {
+  display: none;
+}
+
+body {
+  color-scheme: light;
+}
+
+body.dark {
+  color-scheme: dark;
+}
