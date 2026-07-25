@@ -65,24 +65,14 @@ const elements = {
   clearHistoryBtn: document.getElementById('clearHistoryBtn'),
   backToSetupBtn: document.getElementById('backToSetupBtn'),
   resetGameBtn: document.getElementById('resetGameBtn'),
-  roundNumber: document.getElementById('roundNumber'),
-  currentPlayerType: document.getElementById('currentPlayerType'),
-  turnTitle: document.getElementById('turnTitle'),
-  turnSubline: document.getElementById('turnSubline'),
-  currentScore: document.getElementById('currentScore'),
   scoreboard: document.getElementById('scoreboard'),
+  scoreboardWrap: document.getElementById('scoreboardWrap'),
+  turnDots: document.getElementById('turnDots'),
   humanControls: document.getElementById('humanControls'),
   botControls: document.getElementById('botControls'),
   targetButtons: document.getElementById('targetButtons'),
   multiplierButtons: document.getElementById('multiplierButtons'),
-  botTurnHeading: document.getElementById('botTurnHeading'),
-  botTurnText: document.getElementById('botTurnText'),
-  botThrowBtn: document.getElementById('botThrowBtn'),
   undoDartBtn: document.getElementById('undoDartBtn'),
-  endTurnBtn: document.getElementById('endTurnBtn'),
-  dartCounter: document.getElementById('dartCounter'),
-  currentTurnDarts: document.getElementById('currentTurnDarts'),
-  gameLog: document.getElementById('gameLog'),
   winnerDialog: document.getElementById('winnerDialog'),
   winnerTitle: document.getElementById('winnerTitle'),
   winnerSummary: document.getElementById('winnerSummary'),
@@ -95,8 +85,9 @@ let profiles = loadJson(PROFILE_KEY, []);
 let history = loadJson(HISTORY_KEY, []);
 let lineup = [];
 let game = null;
-let selectedTarget = '20';
+let selectedMultiplier = 1;
 let botBusy = false;
+let botStartTimer = null;
 
 function uid(prefix = 'id') {
   if (globalThis.crypto?.randomUUID) return `${prefix}-${globalThis.crypto.randomUUID()}`;
@@ -357,12 +348,14 @@ function startGameFromLineup() {
     return;
   }
   game = createGame(lineup);
-  selectedTarget = '20';
+  selectedMultiplier = 1;
   persistActiveGame();
   showGame();
 }
 
 function showSetup() {
+  window.clearTimeout(botStartTimer);
+  document.body.classList.remove('game-active');
   elements.gameView.classList.remove('active');
   elements.setupView.classList.add('active');
   renderLineup();
@@ -372,6 +365,7 @@ function showSetup() {
 
 function showGame() {
   if (!game) return;
+  document.body.classList.add('game-active');
   elements.setupView.classList.remove('active');
   elements.gameView.classList.add('active');
   renderGame();
@@ -500,7 +494,7 @@ function advanceTurn() {
   game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.players.length;
   if (game.currentPlayerIndex === 0 && previousIndex === game.players.length - 1) game.round += 1;
   game.dartsThisTurn = [];
-  selectedTarget = chooseSuggestedTarget(game.currentPlayerIndex);
+  selectedMultiplier = 1;
   persistActiveGame();
   renderGame();
 }
@@ -514,15 +508,37 @@ function endTurnEarly() {
 
 function renderTargetButtons() {
   const player = getCurrentPlayer();
-  elements.targetButtons.innerHTML = CRICKET_TARGETS.map((target) => {
+  const numberButtons = CRICKET_TARGETS.map((target) => {
     const closed = Number(player.marks[target]) >= 3;
-    return `<button class="target-button ${target === selectedTarget ? 'selected' : ''} ${closed ? 'closed-target' : ''}" data-target="${escapeHtml(target)}" type="button">${escapeHtml(target)}</button>`;
-  }).join('');
+    return `<button class="target-button ${closed ? 'closed-target' : ''}" data-target="${escapeHtml(target)}" type="button">${escapeHtml(target)}</button>`;
+  });
+  numberButtons.push('<button class="target-button miss-target-button" data-target="Miss" type="button">Miss</button>');
+  elements.targetButtons.innerHTML = numberButtons.join('');
+}
+
+function renderMultiplierButtons() {
+  elements.multiplierButtons.querySelectorAll('[data-multiplier]').forEach((button) => {
+    button.classList.toggle('selected', Number(button.dataset.multiplier) === selectedMultiplier);
+  });
+}
+
+function renderTurnDots() {
+  const used = game.dartsThisTurn.length;
+  elements.turnDots.querySelectorAll('span').forEach((dot, index) => {
+    dot.classList.toggle('used', index < used);
+  });
+}
+
+function scrollActivePlayerIntoView() {
+  const activeHead = elements.scoreboard.querySelector(`[data-player-index="${game.currentPlayerIndex}"]`);
+  if (!activeHead || !elements.scoreboardWrap) return;
+  const targetLeft = activeHead.offsetLeft - (elements.scoreboardWrap.clientWidth / 2) + (activeHead.offsetWidth / 2);
+  elements.scoreboardWrap.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' });
 }
 
 function renderScoreboard() {
   const headerCells = game.players.map((player, index) => `
-    <th class="player-head ${index === game.currentPlayerIndex ? 'active-player' : ''}">
+    <th class="player-head ${index === game.currentPlayerIndex ? 'active-player' : ''}" data-player-index="${index}">
       <span class="head-name">${escapeHtml(player.name)}</span>
       <span class="head-score">${player.score}</span>
     </th>
@@ -542,28 +558,10 @@ function renderScoreboard() {
   `;
 }
 
-function renderTurnDarts() {
-  const slots = [0, 1, 2].map((index) => {
-    const dart = game.dartsThisTurn[index];
-    if (!dart) {
-      return `<div class="dart-slot empty"><span class="dart-slot-number">${index + 1}</span><span>Noch offen</span><span></span></div>`;
-    }
-    const additions = [
-      dart.marksAdded ? `+${dart.marksAdded}M` : '',
-      dart.pointsAdded ? `+${dart.pointsAdded}P` : '',
-    ].filter(Boolean).join(' ');
-    return `<div class="dart-slot"><span class="dart-slot-number">${index + 1}</span><span class="dart-result">${escapeHtml(dart.label)}</span><span class="dart-points">${escapeHtml(additions)}</span></div>`;
-  });
-  elements.currentTurnDarts.innerHTML = slots.join('');
-  elements.dartCounter.textContent = `${game.dartsThisTurn.length}/3`;
-}
-
-function renderLog() {
-  if (!game.log.length) {
-    elements.gameLog.innerHTML = '<div class="empty-copy">Noch kein Wurf.</div>';
-    return;
-  }
-  elements.gameLog.innerHTML = game.log.slice(0, 12).map((entry) => `<div class="log-entry">${entry.message}</div>`).join('');
+function scheduleAutomaticBotTurn() {
+  window.clearTimeout(botStartTimer);
+  if (!game || game.finished || botBusy || getCurrentPlayer().type !== 'bot') return;
+  botStartTimer = window.setTimeout(() => botThrow(), 90);
 }
 
 function renderGame() {
@@ -571,40 +569,40 @@ function renderGame() {
   const player = getCurrentPlayer();
   const isBot = player.type === 'bot';
 
-  elements.roundNumber.textContent = String(game.round);
-  elements.currentPlayerType.textContent = isBot ? `BOT · ${BOT_LEVELS[player.levelKey]?.label || 'Normal'}` : 'SPIELER';
-  elements.turnTitle.textContent = `${player.name} ist am Wurf`;
-  elements.turnSubline.textContent = `Wurf ${Math.min(3, game.dartsThisTurn.length + 1)} von 3`;
-  elements.currentScore.textContent = String(player.score);
   elements.humanControls.hidden = isBot;
   elements.botControls.hidden = !isBot;
-  elements.botTurnHeading.textContent = `${player.name} ist bereit`;
-  elements.botTurnText.textContent = `${BOT_LEVELS[player.levelKey]?.description || BOT_LEVELS.normal.description} Der Bot wirft die restlichen ${3 - game.dartsThisTurn.length} Darts.`;
-  elements.botThrowBtn.disabled = botBusy || game.dartsThisTurn.length >= 3;
   elements.undoDartBtn.disabled = !game.undoStack.length || botBusy;
-  elements.endTurnBtn.disabled = botBusy;
-  elements.endTurnBtn.hidden = isBot;
-
-  const tripleButton = elements.multiplierButtons.querySelector('[data-multiplier="3"]');
-  if (tripleButton) tripleButton.disabled = selectedTarget === 'Bull';
 
   renderTargetButtons();
+  renderMultiplierButtons();
   renderScoreboard();
-  renderTurnDarts();
-  renderLog();
+  renderTurnDots();
+
+  window.requestAnimationFrame(scrollActivePlayerIntoView);
+  scheduleAutomaticBotTurn();
 }
 
-function selectTarget(target) {
-  if (!CRICKET_TARGETS.includes(target) || getCurrentPlayer().type === 'bot') return;
-  selectedTarget = target;
-  renderGame();
+function recordHumanTarget(target) {
+  if (!game || game.finished || botBusy || getCurrentPlayer().type !== 'human') return;
+
+  if (target === 'Miss') {
+    selectedMultiplier = 1;
+    recordDart({ target: null, multiplier: 0, aimedAt: null }, 'human');
+    return;
+  }
+
+  if (!CRICKET_TARGETS.includes(target)) return;
+  const safeMultiplier = target === 'Bull' ? Math.min(2, selectedMultiplier) : Math.min(3, selectedMultiplier);
+  selectedMultiplier = 1;
+  recordDart({ target, multiplier: safeMultiplier, aimedAt: target }, 'human');
 }
 
-function humanHit(multiplier) {
-  if (!game || getCurrentPlayer().type !== 'human') return;
-  const safeMultiplier = selectedTarget === 'Bull' ? Math.min(2, multiplier) : Math.min(3, multiplier);
-  const dart = safeMultiplier === 0 ? { target: null, multiplier: 0, aimedAt: selectedTarget } : { target: selectedTarget, multiplier: safeMultiplier, aimedAt: selectedTarget };
-  recordDart(dart, 'human');
+function selectMultiplier(multiplier) {
+  if (!game || botBusy || getCurrentPlayer().type !== 'human') return;
+  const value = Number(multiplier);
+  if (![2, 3].includes(value)) return;
+  selectedMultiplier = selectedMultiplier === value ? 1 : value;
+  renderMultiplierButtons();
 }
 
 function clamp(value, min, max) {
@@ -743,15 +741,20 @@ function chooseBotAim(playerIndex) {
   return { target, aimMultiplier };
 }
 
-function botThrow() {
+function wait(milliseconds) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+async function botThrow() {
   if (!game || game.finished || getCurrentPlayer().type !== 'bot' || botBusy) return;
   botBusy = true;
-  elements.botThrowBtn.disabled = true;
+  renderGame();
 
   const playerIndex = game.currentPlayerIndex;
   const remaining = 3 - game.dartsThisTurn.length;
 
   for (let i = 0; i < remaining; i += 1) {
+    await wait(105);
     if (!game || game.finished || game.currentPlayerIndex !== playerIndex) break;
     const player = game.players[playerIndex];
     const aim = chooseBotAim(playerIndex);
@@ -767,6 +770,7 @@ function botThrow() {
 }
 
 function finishGame(winnerIndex) {
+  window.clearTimeout(botStartTimer);
   game.finished = true;
   game.winnerIndex = winnerIndex;
   const winner = game.players[winnerIndex];
@@ -806,14 +810,14 @@ function rematch() {
   }));
   lineup = participants;
   game = createGame(participants);
-  selectedTarget = '20';
+  selectedMultiplier = 1;
   elements.winnerDialog.close();
   persistActiveGame();
   showGame();
 }
 
 function resetCurrentGame() {
-  if (!game) return;
+  if (!game || botBusy) return;
   if (!window.confirm('Aktuelles Cricket-Spiel wirklich neu starten?')) return;
   const participants = game.players.map((player) => ({
     instanceId: uid(player.type === 'bot' ? 'bot' : 'seat'),
@@ -823,12 +827,13 @@ function resetCurrentGame() {
     levelKey: player.levelKey,
   }));
   game = createGame(participants);
-  selectedTarget = '20';
+  selectedMultiplier = 1;
   persistActiveGame();
   renderGame();
 }
 
 function leaveGameForSetup() {
+  if (botBusy) return;
   if (game && !game.finished && !window.confirm('Das laufende Spiel bleibt gespeichert. Zur Einrichtung wechseln?')) return;
   showSetup();
 }
@@ -863,7 +868,7 @@ function clearHistory() {
 }
 
 function registerServiceWorker() {
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+  if (navigator.serviceWorker?.register) navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
 
 function initEvents() {
@@ -886,15 +891,13 @@ function initEvents() {
   elements.resetGameBtn.addEventListener('click', resetCurrentGame);
   elements.targetButtons.addEventListener('click', (event) => {
     const button = event.target.closest('[data-target]');
-    if (button) selectTarget(button.dataset.target);
+    if (button && !button.disabled) recordHumanTarget(button.dataset.target);
   });
   elements.multiplierButtons.addEventListener('click', (event) => {
     const button = event.target.closest('[data-multiplier]');
-    if (button && !button.disabled) humanHit(Number(button.dataset.multiplier));
+    if (button && !button.disabled) selectMultiplier(Number(button.dataset.multiplier));
   });
-  elements.botThrowBtn.addEventListener('click', botThrow);
   elements.undoDartBtn.addEventListener('click', restoreUndo);
-  elements.endTurnBtn.addEventListener('click', endTurnEarly);
   elements.rematchBtn.addEventListener('click', rematch);
   elements.winnerSetupBtn.addEventListener('click', winnerBackToSetup);
 }
@@ -916,7 +919,7 @@ function init() {
       name: player.name,
       levelKey: player.levelKey,
     }));
-    selectedTarget = chooseSuggestedTarget(game.currentPlayerIndex);
+    selectedMultiplier = 1;
     showGame();
   }
 }

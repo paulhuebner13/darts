@@ -605,3 +605,51 @@ body.dark {
   border-color: var(--primary);
   color: var(--primary);
 }
+
+/* Schönerer Wechsel zum Cricket-Modus */
+.mode-link {
+  gap: 7px;
+  min-height: 48px;
+  padding: 0 15px 0 10px;
+  border: 1px solid rgba(34, 197, 94, 0.38);
+  border-radius: 999px;
+  background: linear-gradient(145deg, #15803d, #166534);
+  color: #ffffff;
+  box-shadow: 0 9px 22px rgba(21, 128, 61, 0.25);
+  letter-spacing: -0.01em;
+}
+
+.mode-link-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.mode-link:hover,
+.mode-link:focus-visible {
+  color: #ffffff;
+  border-color: rgba(134, 239, 172, 0.9);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px rgba(21, 128, 61, 0.32);
+}
+
+@media (max-width: 430px) {
+  .mode-link {
+    min-height: 44px;
+    padding: 0 12px 0 8px;
+    font-size: 0.9rem;
+  }
+  .mode-link-icon {
+    width: 26px;
+    height: 26px;
+  }
+  .topbar-actions .icon-button {
+    width: 44px;
+    height: 44px;
+  }
+}

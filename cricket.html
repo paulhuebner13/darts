@@ -17,7 +17,6 @@
       <div>
         <div class="eyebrow">DARTS</div>
         <h1>Cricket</h1>
-        <p>20 bis 15 und Bull schließen – und dabei vorne bleiben.</p>
       </div>
       <a class="trainer-link" href="index.html">← Trainer</a>
     </header>
@@ -101,69 +100,35 @@
         </article>
       </section>
 
-      <section id="gameView" class="screen" aria-labelledby="turnTitle">
-        <div class="game-toolbar">
-          <button id="backToSetupBtn" class="quiet-button" type="button">← Einrichtung</button>
-          <div class="round-pill">Runde <strong id="roundNumber">1</strong></div>
-          <button id="resetGameBtn" class="quiet-button danger-button" type="button">Neu starten</button>
-        </div>
-
-        <article class="turn-card">
-          <div>
-            <span id="currentPlayerType" class="player-type-badge">SPIELER</span>
-            <h2 id="turnTitle">Am Wurf</h2>
-            <p id="turnSubline">Wurf 1 von 3</p>
+      <section id="gameView" class="screen compact-game-screen" aria-label="Cricket-Spiel">
+        <div class="compact-game-toolbar">
+          <button id="backToSetupBtn" class="compact-icon-button" type="button" aria-label="Zur Einrichtung">←</button>
+          <div id="turnDots" class="turn-dots" aria-label="Würfe in dieser Aufnahme">
+            <span></span><span></span><span></span>
           </div>
-          <div id="currentScore" class="current-score">0</div>
+          <button id="resetGameBtn" class="compact-icon-button danger-icon-button" type="button" aria-label="Spiel neu starten">↻</button>
+        </div>
+
+        <div id="scoreboardWrap" class="scoreboard-wrap compact-scoreboard-wrap" aria-label="Cricket-Scoreboard">
+          <table id="scoreboard" class="scoreboard compact-scoreboard"></table>
+        </div>
+
+        <article class="compact-throw-panel">
+          <div id="humanControls" class="compact-human-controls">
+            <div id="targetButtons" class="target-button-grid compact-target-grid"></div>
+            <div id="multiplierButtons" class="compact-multiplier-grid" aria-label="Wurfart">
+              <button class="modifier-button" data-multiplier="2" type="button">Double</button>
+              <button class="modifier-button" data-multiplier="3" type="button">Triple</button>
+            </div>
+          </div>
+
+          <div id="botControls" class="compact-bot-status" hidden aria-live="polite">
+            <span class="bot-loading-dot"></span>
+            <span>Bot wirft</span>
+          </div>
+
+          <button id="undoDartBtn" class="compact-undo-button" type="button" aria-label="Letzten Wurf zurück">↶</button>
         </article>
-
-        <div class="scoreboard-wrap" aria-label="Cricket-Scoreboard">
-          <table id="scoreboard" class="scoreboard"></table>
-        </div>
-
-        <div class="game-layout">
-          <article class="panel throw-panel">
-            <div id="humanControls">
-              <div class="control-section">
-                <div class="control-label">Ziel wählen</div>
-                <div id="targetButtons" class="target-button-grid"></div>
-              </div>
-
-              <div class="control-section">
-                <div class="control-label">Treffer eintragen</div>
-                <div id="multiplierButtons" class="multiplier-grid">
-                  <button class="hit-button miss-hit" data-multiplier="0" type="button"><span>Miss</span><small>0 Marks</small></button>
-                  <button class="hit-button" data-multiplier="1" type="button"><span>Single</span><small>1 Mark</small></button>
-                  <button class="hit-button" data-multiplier="2" type="button"><span>Double</span><small>2 Marks</small></button>
-                  <button class="hit-button triple-hit" data-multiplier="3" type="button"><span>Triple</span><small>3 Marks</small></button>
-                </div>
-              </div>
-            </div>
-
-            <div id="botControls" class="bot-turn-box" hidden>
-              <div class="bot-orbit" aria-hidden="true"><span>BOT</span></div>
-              <h3 id="botTurnHeading">Bot ist bereit</h3>
-              <p id="botTurnText">Der Bot wählt seine Ziele taktisch und wirft drei Darts.</p>
-              <button id="botThrowBtn" class="cta-button" type="button">Bot werfen lassen</button>
-            </div>
-
-            <div class="turn-actions">
-              <button id="undoDartBtn" class="quiet-button" type="button">Letzten Wurf zurück</button>
-              <button id="endTurnBtn" class="quiet-button" type="button">Zug vorzeitig beenden</button>
-            </div>
-          </article>
-
-          <aside class="panel turn-log-panel">
-            <div class="panel-heading compact-heading">
-              <h2>Diese Aufnahme</h2>
-              <span id="dartCounter" class="capacity-label">0/3</span>
-            </div>
-            <div id="currentTurnDarts" class="dart-slots"></div>
-            <div class="log-divider"></div>
-            <div class="control-label">Letzte Aktionen</div>
-            <div id="gameLog" class="game-log"></div>
-          </aside>
-        </div>
       </section>
     </main>
   </div>
