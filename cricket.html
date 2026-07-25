@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#07140f" />
+  <meta name="description" content="Darts Cricket für menschliche Spieler und Bots mit mehreren Schwierigkeitsstufen." />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="stylesheet" href="cricket.css" />
+  <title>Darts Cricket</title>
+</head>
+<body>
+  <div class="cricket-shell">
+    <header class="cricket-header">
+      <div>
+        <div class="eyebrow">DARTS</div>
+        <h1>Cricket</h1>
+        <p>20 bis 15 und Bull schließen – und dabei vorne bleiben.</p>
+      </div>
+      <a class="trainer-link" href="index.html">← Trainer</a>
+    </header>
+
+    <main>
+      <section id="setupView" class="screen active" aria-labelledby="setupTitle">
+        <div class="setup-grid">
+          <article class="panel setup-main-panel">
+            <div class="panel-heading">
+              <div>
+                <span class="step-number">1</span>
+                <h2 id="setupTitle">Spieler auswählen</h2>
+              </div>
+              <span class="capacity-label"><span id="lineupCount">0</span>/6</span>
+            </div>
+
+            <div id="selectedLineup" class="selected-lineup empty-copy">
+              Noch niemand im Spiel. Füge mindestens zwei Spieler oder Bots hinzu.
+            </div>
+
+            <button id="startGameBtn" class="cta-button" type="button" disabled>Cricket starten</button>
+            <p id="setupMessage" class="form-message" role="status"></p>
+          </article>
+
+          <div class="setup-side">
+            <article class="panel">
+              <div class="panel-heading compact-heading">
+                <div>
+                  <span class="step-number">2</span>
+                  <h2>Menschen</h2>
+                </div>
+              </div>
+
+              <form id="createPlayerForm" class="inline-form">
+                <label class="sr-only" for="playerNameInput">Name des Spielers</label>
+                <input id="playerNameInput" maxlength="24" autocomplete="off" placeholder="Name eingeben" />
+                <button class="small-primary" type="submit">Erstellen</button>
+              </form>
+
+              <div id="savedPlayers" class="saved-list"></div>
+            </article>
+
+            <article class="panel bot-panel">
+              <div class="panel-heading compact-heading">
+                <div>
+                  <span class="step-number">3</span>
+                  <h2>Bot hinzufügen</h2>
+                </div>
+              </div>
+
+              <label class="field-label" for="botDifficulty">Schwierigkeit</label>
+              <select id="botDifficulty">
+                <option value="rookie">Anfänger</option>
+                <option value="casual">Locker</option>
+                <option value="normal" selected>Normal</option>
+                <option value="strong">Stark</option>
+                <option value="expert">Experte</option>
+              </select>
+              <div id="botDescription" class="bot-description"></div>
+              <button id="addBotBtn" class="outline-button" type="button">Bot hinzufügen</button>
+            </article>
+          </div>
+        </div>
+
+        <article class="panel rules-panel">
+          <details>
+            <summary>So wird Cricket gewertet</summary>
+            <div class="rules-copy">
+              <p>Gespielt werden 20, 19, 18, 17, 16, 15 und Bull. Jede Zahl braucht drei Marks: Single zählt 1, Double 2 und Triple 3. Beim Bull zählt außen 1 und innen 2.</p>
+              <p>Ist ein Feld bei dir geschlossen, aber bei mindestens einem Gegner noch offen, bringen weitere Marks Punkte. Du gewinnst, sobald du alle Felder geschlossen hast und mindestens so viele Punkte wie jeder Gegner besitzt.</p>
+            </div>
+          </details>
+        </article>
+
+        <article id="historyPanel" class="panel history-panel">
+          <div class="panel-heading compact-heading">
+            <h2>Letzte Spiele</h2>
+            <button id="clearHistoryBtn" class="quiet-button danger-button" type="button">Verlauf löschen</button>
+          </div>
+          <div id="cricketHistory" class="cricket-history empty-copy">Noch kein Cricket-Spiel abgeschlossen.</div>
+        </article>
+      </section>
+
+      <section id="gameView" class="screen" aria-labelledby="turnTitle">
+        <div class="game-toolbar">
+          <button id="backToSetupBtn" class="quiet-button" type="button">← Einrichtung</button>
+          <div class="round-pill">Runde <strong id="roundNumber">1</strong></div>
+          <button id="resetGameBtn" class="quiet-button danger-button" type="button">Neu starten</button>
+        </div>
+
+        <article class="turn-card">
+          <div>
+            <span id="currentPlayerType" class="player-type-badge">SPIELER</span>
+            <h2 id="turnTitle">Am Wurf</h2>
+            <p id="turnSubline">Wurf 1 von 3</p>
+          </div>
+          <div id="currentScore" class="current-score">0</div>
+        </article>
+
+        <div class="scoreboard-wrap" aria-label="Cricket-Scoreboard">
+          <table id="scoreboard" class="scoreboard"></table>
+        </div>
+
+        <div class="game-layout">
+          <article class="panel throw-panel">
+            <div id="humanControls">
+              <div class="control-section">
+                <div class="control-label">Ziel wählen</div>
+                <div id="targetButtons" class="target-button-grid"></div>
+              </div>
+
+              <div class="control-section">
+                <div class="control-label">Treffer eintragen</div>
+                <div id="multiplierButtons" class="multiplier-grid">
+                  <button class="hit-button miss-hit" data-multiplier="0" type="button"><span>Miss</span><small>0 Marks</small></button>
+                  <button class="hit-button" data-multiplier="1" type="button"><span>Single</span><small>1 Mark</small></button>
+                  <button class="hit-button" data-multiplier="2" type="button"><span>Double</span><small>2 Marks</small></button>
+                  <button class="hit-button triple-hit" data-multiplier="3" type="button"><span>Triple</span><small>3 Marks</small></button>
+                </div>
+              </div>
+            </div>
+
+            <div id="botControls" class="bot-turn-box" hidden>
+              <div class="bot-orbit" aria-hidden="true"><span>BOT</span></div>
+              <h3 id="botTurnHeading">Bot ist bereit</h3>
+              <p id="botTurnText">Der Bot wählt seine Ziele taktisch und wirft drei Darts.</p>
+              <button id="botThrowBtn" class="cta-button" type="button">Bot werfen lassen</button>
+            </div>
+
+            <div class="turn-actions">
+              <button id="undoDartBtn" class="quiet-button" type="button">Letzten Wurf zurück</button>
+              <button id="endTurnBtn" class="quiet-button" type="button">Zug vorzeitig beenden</button>
+            </div>
+          </article>
+
+          <aside class="panel turn-log-panel">
+            <div class="panel-heading compact-heading">
+              <h2>Diese Aufnahme</h2>
+              <span id="dartCounter" class="capacity-label">0/3</span>
+            </div>
+            <div id="currentTurnDarts" class="dart-slots"></div>
+            <div class="log-divider"></div>
+            <div class="control-label">Letzte Aktionen</div>
+            <div id="gameLog" class="game-log"></div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="winnerDialog" class="winner-dialog">
+    <div class="winner-content">
+      <div class="trophy-mark">WIN</div>
+      <h2 id="winnerTitle">Gewonnen!</h2>
+      <p id="winnerSummary"></p>
+      <div id="finalScores" class="final-scores"></div>
+      <div class="winner-actions">
+        <button id="rematchBtn" class="cta-button" type="button">Revanche</button>
+        <button id="winnerSetupBtn" class="outline-button" type="button">Zur Einrichtung</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="cricket.js"></script>
+</body>
+</html>

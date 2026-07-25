@@ -1,0 +1,924 @@
+'use strict';
+
+const PROFILE_KEY = 'darts-cricket-profiles-v1';
+const ACTIVE_GAME_KEY = 'darts-cricket-active-v1';
+const HISTORY_KEY = 'darts-cricket-history-v1';
+const MAX_PLAYERS = 6;
+const CRICKET_TARGETS = ['20', '19', '18', '17', '16', '15', 'Bull'];
+const TARGET_VALUES = { '20': 20, '19': 19, '18': 18, '17': 17, '16': 16, '15': 15, Bull: 25 };
+const BOARD_ORDER = ['20', '1', '18', '4', '13', '6', '10', '15', '2', '17', '3', '19', '7', '16', '8', '11', '14', '9', '12', '5'];
+
+// Jeder Feldtyp besitzt eine feste Basisgenauigkeit. Die Schwierigkeit multipliziert
+// diese Werte linear. So trifft ein Bot mit Faktor 1,4 dasselbe kleine Feld ungefähr
+// 40 % häufiger als ein Bot mit Faktor 1,0, solange der Sicherheitsdeckel nicht greift.
+const BASE_ACCURACY = {
+  numericSingle: 0.56,
+  numericWedge: 0.72,
+  numericDouble: 0.10,
+  numericTriple: 0.075,
+  anyBull: 0.50,
+  innerBull: 0.12,
+};
+
+const BOT_LEVELS = {
+  rookie: {
+    label: 'Anfänger',
+    factor: 0.58,
+    description: 'Viele Streuwürfe. Kleine Doppel-, Triple- und Bull-Felder werden nur selten getroffen.',
+  },
+  casual: {
+    label: 'Locker',
+    factor: 0.80,
+    description: 'Solider Freizeitspieler. Singles gelingen oft, Triple und Bull bleiben deutlich schwieriger.',
+  },
+  normal: {
+    label: 'Normal',
+    factor: 1.00,
+    description: 'Ausgewogener Bot mit vernünftiger Cricket-Taktik und realistisch schwankender Genauigkeit.',
+  },
+  strong: {
+    label: 'Stark',
+    factor: 1.28,
+    description: 'Trifft kleine Felder spürbar häufiger und nutzt offene Zahlen konsequent zum Punkten.',
+  },
+  expert: {
+    label: 'Experte',
+    factor: 1.60,
+    description: 'Sehr präzise. Triple und Bull bleiben schwerer als Singles, werden aber deutlich öfter getroffen.',
+  },
+};
+
+const elements = {
+  setupView: document.getElementById('setupView'),
+  gameView: document.getElementById('gameView'),
+  lineupCount: document.getElementById('lineupCount'),
+  selectedLineup: document.getElementById('selectedLineup'),
+  startGameBtn: document.getElementById('startGameBtn'),
+  setupMessage: document.getElementById('setupMessage'),
+  createPlayerForm: document.getElementById('createPlayerForm'),
+  playerNameInput: document.getElementById('playerNameInput'),
+  savedPlayers: document.getElementById('savedPlayers'),
+  botDifficulty: document.getElementById('botDifficulty'),
+  botDescription: document.getElementById('botDescription'),
+  addBotBtn: document.getElementById('addBotBtn'),
+  cricketHistory: document.getElementById('cricketHistory'),
+  clearHistoryBtn: document.getElementById('clearHistoryBtn'),
+  backToSetupBtn: document.getElementById('backToSetupBtn'),
+  resetGameBtn: document.getElementById('resetGameBtn'),
+  roundNumber: document.getElementById('roundNumber'),
+  currentPlayerType: document.getElementById('currentPlayerType'),
+  turnTitle: document.getElementById('turnTitle'),
+  turnSubline: document.getElementById('turnSubline'),
+  currentScore: document.getElementById('currentScore'),
+  scoreboard: document.getElementById('scoreboard'),
+  humanControls: document.getElementById('humanControls'),
+  botControls: document.getElementById('botControls'),
+  targetButtons: document.getElementById('targetButtons'),
+  multiplierButtons: document.getElementById('multiplierButtons'),
+  botTurnHeading: document.getElementById('botTurnHeading'),
+  botTurnText: document.getElementById('botTurnText'),
+  botThrowBtn: document.getElementById('botThrowBtn'),
+  undoDartBtn: document.getElementById('undoDartBtn'),
+  endTurnBtn: document.getElementById('endTurnBtn'),
+  dartCounter: document.getElementById('dartCounter'),
+  currentTurnDarts: document.getElementById('currentTurnDarts'),
+  gameLog: document.getElementById('gameLog'),
+  winnerDialog: document.getElementById('winnerDialog'),
+  winnerTitle: document.getElementById('winnerTitle'),
+  winnerSummary: document.getElementById('winnerSummary'),
+  finalScores: document.getElementById('finalScores'),
+  rematchBtn: document.getElementById('rematchBtn'),
+  winnerSetupBtn: document.getElementById('winnerSetupBtn'),
+};
+
+let profiles = loadJson(PROFILE_KEY, []);
+let history = loadJson(HISTORY_KEY, []);
+let lineup = [];
+let game = null;
+let selectedTarget = '20';
+let botBusy = false;
+
+function uid(prefix = 'id') {
+  if (globalThis.crypto?.randomUUID) return `${prefix}-${globalThis.crypto.randomUUID()}`;
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function loadJson(key, fallback) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key));
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveJson(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function deepClone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function emptyMarks() {
+  return Object.fromEntries(CRICKET_TARGETS.map((target) => [target, 0]));
+}
+
+function sanitizeProfiles(raw) {
+  if (!Array.isArray(raw)) return [];
+  const seenNames = new Set();
+  return raw.filter((entry) => {
+    const name = String(entry?.name || '').trim();
+    const key = name.toLocaleLowerCase('de');
+    if (!name || seenNames.has(key)) return false;
+    seenNames.add(key);
+    return true;
+  }).map((entry) => ({
+    id: typeof entry.id === 'string' && entry.id ? entry.id : uid('human'),
+    name: String(entry.name).trim().slice(0, 24),
+    createdAt: Number(entry.createdAt) || Date.now(),
+  }));
+}
+
+function sanitizeHistory(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((entry) => entry && Array.isArray(entry.players) && entry.winnerName).slice(-20);
+}
+
+profiles = sanitizeProfiles(profiles);
+history = sanitizeHistory(history);
+saveJson(PROFILE_KEY, profiles);
+saveJson(HISTORY_KEY, history);
+
+function participantFromProfile(profile) {
+  return {
+    instanceId: uid('seat'),
+    profileId: profile.id,
+    type: 'human',
+    name: profile.name,
+  };
+}
+
+function createBot(levelKey) {
+  const level = BOT_LEVELS[levelKey] || BOT_LEVELS.normal;
+  const sameLevelCount = lineup.filter((participant) => participant.type === 'bot' && participant.levelKey === levelKey).length;
+  return {
+    instanceId: uid('bot'),
+    type: 'bot',
+    name: `Bot ${level.label}${sameLevelCount ? ` ${sameLevelCount + 1}` : ''}`,
+    levelKey,
+  };
+}
+
+function isProfileSelected(profileId) {
+  return lineup.some((participant) => participant.profileId === profileId);
+}
+
+function setSetupMessage(message = '') {
+  elements.setupMessage.textContent = message;
+}
+
+function canAddParticipant() {
+  if (lineup.length >= MAX_PLAYERS) {
+    setSetupMessage(`Maximal ${MAX_PLAYERS} Teilnehmer sind möglich.`);
+    return false;
+  }
+  return true;
+}
+
+function renderProfiles() {
+  if (!profiles.length) {
+    elements.savedPlayers.innerHTML = '<div class="empty-copy">Noch keine gespeicherten Spieler.</div>';
+    return;
+  }
+
+  elements.savedPlayers.innerHTML = profiles.map((profile) => `
+    <div class="saved-player-row">
+      <span class="saved-player-name">${escapeHtml(profile.name)}</span>
+      <button class="add-profile" type="button" data-add-profile="${escapeHtml(profile.id)}" ${isProfileSelected(profile.id) || lineup.length >= MAX_PLAYERS ? 'disabled' : ''}>Hinzufügen</button>
+      <button class="delete-profile" type="button" data-delete-profile="${escapeHtml(profile.id)}" aria-label="${escapeHtml(profile.name)} löschen">×</button>
+    </div>
+  `).join('');
+}
+
+function renderLineup() {
+  elements.lineupCount.textContent = String(lineup.length);
+  elements.startGameBtn.disabled = lineup.length < 2;
+
+  if (!lineup.length) {
+    elements.selectedLineup.className = 'selected-lineup empty-copy';
+    elements.selectedLineup.textContent = 'Noch niemand im Spiel. Füge mindestens zwei Spieler oder Bots hinzu.';
+  } else {
+    elements.selectedLineup.className = 'selected-lineup';
+    elements.selectedLineup.innerHTML = lineup.map((participant, index) => {
+      const meta = participant.type === 'bot'
+        ? `Bot · ${BOT_LEVELS[participant.levelKey]?.label || 'Normal'}`
+        : 'Mensch';
+      return `
+        <div class="lineup-card">
+          <span class="turn-order">${index + 1}</span>
+          <div>
+            <div class="lineup-name">${escapeHtml(participant.name)}</div>
+            <div class="lineup-meta">${escapeHtml(meta)}</div>
+          </div>
+          <button class="remove-player" type="button" data-remove-seat="${escapeHtml(participant.instanceId)}" aria-label="${escapeHtml(participant.name)} entfernen">×</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  renderProfiles();
+}
+
+function renderBotDescription() {
+  const level = BOT_LEVELS[elements.botDifficulty.value] || BOT_LEVELS.normal;
+  const bullPercent = Math.round(Math.min(0.80, BASE_ACCURACY.anyBull * level.factor) * 100);
+  const triplePercent = Math.round(Math.min(0.52, BASE_ACCURACY.numericTriple * level.factor) * 100);
+  elements.botDescription.textContent = `${level.description} Richtwert: etwa ${triplePercent} % direktes Triple und ${bullPercent} % irgendein Bull bei entsprechendem Ziel.`;
+}
+
+function createProfile(event) {
+  event.preventDefault();
+  const name = elements.playerNameInput.value.trim().replace(/\s+/g, ' ').slice(0, 24);
+  if (!name) {
+    setSetupMessage('Bitte einen Namen eingeben.');
+    return;
+  }
+
+  if (profiles.some((profile) => profile.name.toLocaleLowerCase('de') === name.toLocaleLowerCase('de'))) {
+    setSetupMessage('Diesen Spieler gibt es bereits.');
+    return;
+  }
+
+  const profile = { id: uid('human'), name, createdAt: Date.now() };
+  profiles.push(profile);
+  saveJson(PROFILE_KEY, profiles);
+  elements.playerNameInput.value = '';
+  setSetupMessage('');
+
+  if (canAddParticipant()) lineup.push(participantFromProfile(profile));
+  renderLineup();
+}
+
+function addProfile(profileId) {
+  if (!canAddParticipant() || isProfileSelected(profileId)) return;
+  const profile = profiles.find((entry) => entry.id === profileId);
+  if (!profile) return;
+  lineup.push(participantFromProfile(profile));
+  setSetupMessage('');
+  renderLineup();
+}
+
+function deleteProfile(profileId) {
+  const profile = profiles.find((entry) => entry.id === profileId);
+  if (!profile) return;
+  if (!window.confirm(`Spieler „${profile.name}“ wirklich löschen?`)) return;
+  profiles = profiles.filter((entry) => entry.id !== profileId);
+  lineup = lineup.filter((participant) => participant.profileId !== profileId);
+  saveJson(PROFILE_KEY, profiles);
+  renderLineup();
+}
+
+function addBot() {
+  if (!canAddParticipant()) return;
+  lineup.push(createBot(elements.botDifficulty.value));
+  setSetupMessage('');
+  renderLineup();
+}
+
+function removeParticipant(instanceId) {
+  lineup = lineup.filter((participant) => participant.instanceId !== instanceId);
+  setSetupMessage('');
+  renderLineup();
+}
+
+function buildGamePlayers(participants) {
+  return participants.map((participant) => ({
+    ...deepClone(participant),
+    score: 0,
+    marks: emptyMarks(),
+  }));
+}
+
+function createGame(participants) {
+  return {
+    id: uid('game'),
+    startedAt: Date.now(),
+    players: buildGamePlayers(participants),
+    currentPlayerIndex: 0,
+    round: 1,
+    dartsThisTurn: [],
+    log: [],
+    undoStack: [],
+    finished: false,
+    winnerIndex: null,
+  };
+}
+
+function persistActiveGame() {
+  if (!game || game.finished) {
+    localStorage.removeItem(ACTIVE_GAME_KEY);
+    return;
+  }
+  saveJson(ACTIVE_GAME_KEY, game);
+}
+
+function validGame(raw) {
+  return raw
+    && Array.isArray(raw.players)
+    && raw.players.length >= 2
+    && raw.players.every((player) => player && player.name && player.marks)
+    && Number.isInteger(raw.currentPlayerIndex)
+    && raw.currentPlayerIndex >= 0
+    && raw.currentPlayerIndex < raw.players.length;
+}
+
+function loadActiveGame() {
+  const raw = loadJson(ACTIVE_GAME_KEY, null);
+  if (!validGame(raw) || raw.finished) return null;
+  raw.undoStack = Array.isArray(raw.undoStack) ? raw.undoStack.slice(-120) : [];
+  raw.log = Array.isArray(raw.log) ? raw.log.slice(-80) : [];
+  raw.dartsThisTurn = Array.isArray(raw.dartsThisTurn) ? raw.dartsThisTurn.slice(0, 3) : [];
+  return raw;
+}
+
+function startGameFromLineup() {
+  if (lineup.length < 2) {
+    setSetupMessage('Du brauchst mindestens zwei Teilnehmer.');
+    return;
+  }
+  game = createGame(lineup);
+  selectedTarget = '20';
+  persistActiveGame();
+  showGame();
+}
+
+function showSetup() {
+  elements.gameView.classList.remove('active');
+  elements.setupView.classList.add('active');
+  renderLineup();
+  renderHistory();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function showGame() {
+  if (!game) return;
+  elements.setupView.classList.remove('active');
+  elements.gameView.classList.add('active');
+  renderGame();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function snapshotGame() {
+  const snapshot = deepClone(game);
+  snapshot.undoStack = [];
+  return snapshot;
+}
+
+function pushUndo() {
+  game.undoStack.push(snapshotGame());
+  if (game.undoStack.length > 120) game.undoStack.shift();
+}
+
+function restoreUndo() {
+  if (!game?.undoStack?.length || botBusy) return;
+  const previous = game.undoStack.pop();
+  const remainingStack = game.undoStack;
+  game = previous;
+  game.undoStack = remainingStack;
+  persistActiveGame();
+  renderGame();
+}
+
+function getCurrentPlayer() {
+  return game.players[game.currentPlayerIndex];
+}
+
+function getMarkSymbol(marks) {
+  if (marks <= 0) return '–';
+  if (marks === 1) return '╱';
+  if (marks === 2) return '✕';
+  return '●';
+}
+
+function isTargetOpenForOpponent(playerIndex, target) {
+  return game.players.some((player, index) => index !== playerIndex && Number(player.marks[target]) < 3);
+}
+
+function allTargetsClosed(player) {
+  return CRICKET_TARGETS.every((target) => Number(player.marks[target]) >= 3);
+}
+
+function winningPlayerIndex() {
+  return game.players.findIndex((player) => {
+    if (!allTargetsClosed(player)) return false;
+    return game.players.every((opponent) => player.score >= opponent.score);
+  });
+}
+
+function dartLabel(dart) {
+  if (!dart || dart.multiplier === 0 || !dart.target) return 'Miss';
+  if (dart.target === 'Bull') return dart.multiplier === 2 ? 'Inner Bull' : 'Outer Bull';
+  const prefix = dart.multiplier === 3 ? 'T' : dart.multiplier === 2 ? 'D' : 'S';
+  return `${prefix}${dart.target}`;
+}
+
+function applyDartToPlayer(playerIndex, dart) {
+  const player = game.players[playerIndex];
+  const target = CRICKET_TARGETS.includes(dart.target) ? dart.target : null;
+  const requestedMarks = target ? Math.max(0, Math.min(target === 'Bull' ? 2 : 3, Number(dart.multiplier) || 0)) : 0;
+
+  if (!target || requestedMarks === 0) {
+    return { marksAdded: 0, pointsAdded: 0 };
+  }
+
+  const before = Math.min(3, Number(player.marks[target]) || 0);
+  const marksToClose = Math.min(requestedMarks, 3 - before);
+  const extraMarks = requestedMarks - marksToClose;
+  player.marks[target] = Math.min(3, before + requestedMarks);
+
+  let pointsAdded = 0;
+  if (extraMarks > 0 && isTargetOpenForOpponent(playerIndex, target)) {
+    pointsAdded = extraMarks * TARGET_VALUES[target];
+    player.score += pointsAdded;
+  }
+
+  return { marksAdded: marksToClose, pointsAdded };
+}
+
+function addLog(message) {
+  game.log.unshift({ id: uid('log'), at: Date.now(), message });
+  game.log = game.log.slice(0, 40);
+}
+
+function recordDart(dart, source = 'human') {
+  if (!game || game.finished || botBusy && source !== 'bot') return;
+  if (game.dartsThisTurn.length >= 3) return;
+
+  pushUndo();
+  const playerIndex = game.currentPlayerIndex;
+  const player = game.players[playerIndex];
+  const result = applyDartToPlayer(playerIndex, dart);
+  const recordedDart = {
+    ...dart,
+    label: dartLabel(dart),
+    marksAdded: result.marksAdded,
+    pointsAdded: result.pointsAdded,
+  };
+  game.dartsThisTurn.push(recordedDart);
+
+  let detail = result.pointsAdded > 0 ? ` · +${result.pointsAdded} Punkte` : '';
+  if (result.marksAdded > 0) detail += ` · +${result.marksAdded} Mark${result.marksAdded === 1 ? '' : 's'}`;
+  addLog(`<strong>${escapeHtml(player.name)}</strong>: ${escapeHtml(recordedDart.label)}${detail}`);
+
+  const winnerIndex = winningPlayerIndex();
+  if (winnerIndex >= 0) {
+    finishGame(winnerIndex);
+    return;
+  }
+
+  if (game.dartsThisTurn.length >= 3) {
+    advanceTurn();
+  } else {
+    persistActiveGame();
+    renderGame();
+  }
+}
+
+function advanceTurn() {
+  if (!game || game.finished) return;
+  const previousIndex = game.currentPlayerIndex;
+  game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.players.length;
+  if (game.currentPlayerIndex === 0 && previousIndex === game.players.length - 1) game.round += 1;
+  game.dartsThisTurn = [];
+  selectedTarget = chooseSuggestedTarget(game.currentPlayerIndex);
+  persistActiveGame();
+  renderGame();
+}
+
+function endTurnEarly() {
+  if (!game || game.finished || botBusy) return;
+  pushUndo();
+  addLog(`<strong>${escapeHtml(getCurrentPlayer().name)}</strong>: Zug beendet`);
+  advanceTurn();
+}
+
+function renderTargetButtons() {
+  const player = getCurrentPlayer();
+  elements.targetButtons.innerHTML = CRICKET_TARGETS.map((target) => {
+    const closed = Number(player.marks[target]) >= 3;
+    return `<button class="target-button ${target === selectedTarget ? 'selected' : ''} ${closed ? 'closed-target' : ''}" data-target="${escapeHtml(target)}" type="button">${escapeHtml(target)}</button>`;
+  }).join('');
+}
+
+function renderScoreboard() {
+  const headerCells = game.players.map((player, index) => `
+    <th class="player-head ${index === game.currentPlayerIndex ? 'active-player' : ''}">
+      <span class="head-name">${escapeHtml(player.name)}</span>
+      <span class="head-score">${player.score}</span>
+    </th>
+  `).join('');
+
+  const rows = CRICKET_TARGETS.map((target) => {
+    const cells = game.players.map((player, index) => {
+      const marks = Math.min(3, Number(player.marks[target]) || 0);
+      return `<td class="mark-cell ${marks >= 3 ? 'closed' : ''} ${index === game.currentPlayerIndex ? 'active-player' : ''}" aria-label="${escapeHtml(player.name)} ${escapeHtml(target)}: ${marks} Marks">${getMarkSymbol(marks)}</td>`;
+    }).join('');
+    return `<tr><th class="target-cell">${escapeHtml(target)}</th>${cells}</tr>`;
+  }).join('');
+
+  elements.scoreboard.innerHTML = `
+    <thead><tr><th class="target-head">Ziel</th>${headerCells}</tr></thead>
+    <tbody>${rows}</tbody>
+  `;
+}
+
+function renderTurnDarts() {
+  const slots = [0, 1, 2].map((index) => {
+    const dart = game.dartsThisTurn[index];
+    if (!dart) {
+      return `<div class="dart-slot empty"><span class="dart-slot-number">${index + 1}</span><span>Noch offen</span><span></span></div>`;
+    }
+    const additions = [
+      dart.marksAdded ? `+${dart.marksAdded}M` : '',
+      dart.pointsAdded ? `+${dart.pointsAdded}P` : '',
+    ].filter(Boolean).join(' ');
+    return `<div class="dart-slot"><span class="dart-slot-number">${index + 1}</span><span class="dart-result">${escapeHtml(dart.label)}</span><span class="dart-points">${escapeHtml(additions)}</span></div>`;
+  });
+  elements.currentTurnDarts.innerHTML = slots.join('');
+  elements.dartCounter.textContent = `${game.dartsThisTurn.length}/3`;
+}
+
+function renderLog() {
+  if (!game.log.length) {
+    elements.gameLog.innerHTML = '<div class="empty-copy">Noch kein Wurf.</div>';
+    return;
+  }
+  elements.gameLog.innerHTML = game.log.slice(0, 12).map((entry) => `<div class="log-entry">${entry.message}</div>`).join('');
+}
+
+function renderGame() {
+  if (!game) return;
+  const player = getCurrentPlayer();
+  const isBot = player.type === 'bot';
+
+  elements.roundNumber.textContent = String(game.round);
+  elements.currentPlayerType.textContent = isBot ? `BOT · ${BOT_LEVELS[player.levelKey]?.label || 'Normal'}` : 'SPIELER';
+  elements.turnTitle.textContent = `${player.name} ist am Wurf`;
+  elements.turnSubline.textContent = `Wurf ${Math.min(3, game.dartsThisTurn.length + 1)} von 3`;
+  elements.currentScore.textContent = String(player.score);
+  elements.humanControls.hidden = isBot;
+  elements.botControls.hidden = !isBot;
+  elements.botTurnHeading.textContent = `${player.name} ist bereit`;
+  elements.botTurnText.textContent = `${BOT_LEVELS[player.levelKey]?.description || BOT_LEVELS.normal.description} Der Bot wirft die restlichen ${3 - game.dartsThisTurn.length} Darts.`;
+  elements.botThrowBtn.disabled = botBusy || game.dartsThisTurn.length >= 3;
+  elements.undoDartBtn.disabled = !game.undoStack.length || botBusy;
+  elements.endTurnBtn.disabled = botBusy;
+  elements.endTurnBtn.hidden = isBot;
+
+  const tripleButton = elements.multiplierButtons.querySelector('[data-multiplier="3"]');
+  if (tripleButton) tripleButton.disabled = selectedTarget === 'Bull';
+
+  renderTargetButtons();
+  renderScoreboard();
+  renderTurnDarts();
+  renderLog();
+}
+
+function selectTarget(target) {
+  if (!CRICKET_TARGETS.includes(target) || getCurrentPlayer().type === 'bot') return;
+  selectedTarget = target;
+  renderGame();
+}
+
+function humanHit(multiplier) {
+  if (!game || getCurrentPlayer().type !== 'human') return;
+  const safeMultiplier = selectedTarget === 'Bull' ? Math.min(2, multiplier) : Math.min(3, multiplier);
+  const dart = safeMultiplier === 0 ? { target: null, multiplier: 0, aimedAt: selectedTarget } : { target: selectedTarget, multiplier: safeMultiplier, aimedAt: selectedTarget };
+  recordDart(dart, 'human');
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function chance(probability) {
+  return Math.random() < clamp(probability, 0, 1);
+}
+
+function adjacentBoardTarget(target) {
+  const index = BOARD_ORDER.indexOf(target);
+  if (index < 0) return String(Math.floor(Math.random() * 20) + 1);
+  const direction = Math.random() < 0.5 ? -1 : 1;
+  return BOARD_ORDER[(index + direction + BOARD_ORDER.length) % BOARD_ORDER.length];
+}
+
+function weightedChoice(items) {
+  const total = items.reduce((sum, item) => sum + Math.max(0, item.weight), 0);
+  if (total <= 0) return items[items.length - 1].value;
+  let roll = Math.random() * total;
+  for (const item of items) {
+    roll -= Math.max(0, item.weight);
+    if (roll <= 0) return item.value;
+  }
+  return items[items.length - 1].value;
+}
+
+function resolveNumericBotDart(target, aimMultiplier, factor) {
+  const exactBase = aimMultiplier === 3
+    ? BASE_ACCURACY.numericTriple
+    : aimMultiplier === 2
+      ? BASE_ACCURACY.numericDouble
+      : BASE_ACCURACY.numericSingle;
+  const exactCap = aimMultiplier === 3 ? 0.42 : aimMultiplier === 2 ? 0.52 : 0.90;
+  const exactProbability = clamp(exactBase * factor, 0.01, exactCap);
+  const wedgeProbability = clamp(BASE_ACCURACY.numericWedge * factor, exactProbability, 0.96);
+  const roll = Math.random();
+
+  // Das tatsächlich anvisierte Feld wird exakt mit Basiswahrscheinlichkeit × Bot-Faktor getroffen.
+  if (roll < exactProbability) {
+    return { target, multiplier: aimMultiplier, aimedAt: target, aimedMultiplier: aimMultiplier };
+  }
+
+  // Der Dart landet noch in derselben Zahl, aber in einem anderen Ring.
+  if (roll < wedgeProbability) {
+    let fallbackMultiplier = 1;
+    if (aimMultiplier === 1) {
+      fallbackMultiplier = weightedChoice([
+        { value: 2, weight: 0.58 },
+        { value: 3, weight: 0.42 },
+      ]);
+    } else if (aimMultiplier === 2) {
+      fallbackMultiplier = weightedChoice([
+        { value: 1, weight: 0.92 },
+        { value: 3, weight: 0.08 },
+      ]);
+    } else {
+      fallbackMultiplier = weightedChoice([
+        { value: 1, weight: 0.91 },
+        { value: 2, weight: 0.09 },
+      ]);
+    }
+    return { target, multiplier: fallbackMultiplier, aimedAt: target, aimedMultiplier: aimMultiplier };
+  }
+
+  if (chance(0.70)) {
+    const adjacent = adjacentBoardTarget(target);
+    const multiplier = chance(0.035 * factor) ? 3 : chance(0.05 * factor) ? 2 : 1;
+    return { target: adjacent, multiplier, aimedAt: target, aimedMultiplier: aimMultiplier };
+  }
+
+  return { target: null, multiplier: 0, aimedAt: target, aimedMultiplier: aimMultiplier };
+}
+
+function resolveBullBotDart(aimMultiplier, factor) {
+  const anyBullProbability = clamp(BASE_ACCURACY.anyBull * factor, 0.10, 0.80);
+  const innerProbability = clamp(BASE_ACCURACY.innerBull * factor * (aimMultiplier === 2 ? 1.18 : 0.58), 0.025, 0.44);
+
+  const roll = Math.random();
+  if (roll < innerProbability) return { target: 'Bull', multiplier: 2, aimedAt: 'Bull', aimedMultiplier: aimMultiplier };
+  if (roll < anyBullProbability) return { target: 'Bull', multiplier: 1, aimedAt: 'Bull', aimedMultiplier: aimMultiplier };
+
+  if (chance(0.58)) {
+    const numericTarget = String(Math.floor(Math.random() * 20) + 1);
+    const multiplier = chance(0.03 * factor) ? 3 : chance(0.045 * factor) ? 2 : 1;
+    return { target: numericTarget, multiplier, aimedAt: 'Bull', aimedMultiplier: aimMultiplier };
+  }
+
+  return { target: null, multiplier: 0, aimedAt: 'Bull', aimedMultiplier: aimMultiplier };
+}
+
+function resolveBotDart(target, aimMultiplier, levelKey) {
+  const factor = BOT_LEVELS[levelKey]?.factor || 1;
+  return target === 'Bull'
+    ? resolveBullBotDart(aimMultiplier, factor)
+    : resolveNumericBotDart(target, aimMultiplier, factor);
+}
+
+function targetPriority(playerIndex, target) {
+  const player = game.players[playerIndex];
+  const ownMarks = Number(player.marks[target]) || 0;
+  const openOpponents = game.players.filter((opponent, index) => index !== playerIndex && Number(opponent.marks[target]) < 3).length;
+  if (openOpponents === 0 && ownMarks >= 3) return -Infinity;
+
+  const maxOpponentScore = Math.max(...game.players.filter((_, index) => index !== playerIndex).map((opponent) => opponent.score));
+  const scoreDeficit = Math.max(0, maxOpponentScore - player.score);
+  const closingNeed = Math.max(0, 3 - ownMarks);
+  const pointPotential = ownMarks >= 3 && openOpponents > 0 ? TARGET_VALUES[target] : 0;
+  const highNumberBias = TARGET_VALUES[target] / 3;
+  const urgency = scoreDeficit > 0 ? pointPotential * 1.7 : pointPotential * 0.8;
+  const closeBias = closingNeed * 24;
+  const bullPenalty = target === 'Bull' ? 7 : 0;
+
+  return closeBias + urgency + highNumberBias + openOpponents * 3 - bullPenalty + Math.random() * 3;
+}
+
+function chooseSuggestedTarget(playerIndex) {
+  return [...CRICKET_TARGETS].sort((a, b) => targetPriority(playerIndex, b) - targetPriority(playerIndex, a))[0] || '20';
+}
+
+function chooseBotAim(playerIndex) {
+  const target = chooseSuggestedTarget(playerIndex);
+  const player = game.players[playerIndex];
+  const marks = Number(player.marks[target]) || 0;
+  let aimMultiplier;
+
+  if (target === 'Bull') {
+    aimMultiplier = 2;
+  } else if (marks < 3) {
+    aimMultiplier = marks === 2 ? 1 : 3;
+  } else {
+    aimMultiplier = 3;
+  }
+
+  return { target, aimMultiplier };
+}
+
+function botThrow() {
+  if (!game || game.finished || getCurrentPlayer().type !== 'bot' || botBusy) return;
+  botBusy = true;
+  elements.botThrowBtn.disabled = true;
+
+  const playerIndex = game.currentPlayerIndex;
+  const remaining = 3 - game.dartsThisTurn.length;
+
+  for (let i = 0; i < remaining; i += 1) {
+    if (!game || game.finished || game.currentPlayerIndex !== playerIndex) break;
+    const player = game.players[playerIndex];
+    const aim = chooseBotAim(playerIndex);
+    const dart = resolveBotDart(aim.target, aim.aimMultiplier, player.levelKey);
+    recordDart(dart, 'bot');
+  }
+
+  botBusy = false;
+  if (game && !game.finished) {
+    persistActiveGame();
+    renderGame();
+  }
+}
+
+function finishGame(winnerIndex) {
+  game.finished = true;
+  game.winnerIndex = winnerIndex;
+  const winner = game.players[winnerIndex];
+  const record = {
+    id: game.id,
+    finishedAt: Date.now(),
+    startedAt: game.startedAt,
+    rounds: game.round,
+    winnerName: winner.name,
+    players: game.players.map((player) => ({ name: player.name, type: player.type, score: player.score })),
+  };
+  history.push(record);
+  history = history.slice(-20);
+  saveJson(HISTORY_KEY, history);
+  localStorage.removeItem(ACTIVE_GAME_KEY);
+
+  renderGame();
+  elements.winnerTitle.textContent = `${winner.name} gewinnt!`;
+  elements.winnerSummary.textContent = `Alle Cricket-Felder geschlossen und nach ${game.round} Runden mindestens punktgleich vorne.`;
+  elements.finalScores.innerHTML = [...game.players]
+    .sort((a, b) => b.score - a.score)
+    .map((player) => `<div class="final-score-row ${player.instanceId === winner.instanceId ? 'winner' : ''}"><span>${escapeHtml(player.name)}</span><strong>${player.score} Punkte</strong></div>`)
+    .join('');
+
+  if (typeof elements.winnerDialog.showModal === 'function') elements.winnerDialog.showModal();
+  else window.alert(`${winner.name} gewinnt!`);
+}
+
+function rematch() {
+  if (!game) return;
+  const participants = game.players.map((player) => ({
+    instanceId: uid(player.type === 'bot' ? 'bot' : 'seat'),
+    profileId: player.profileId,
+    type: player.type,
+    name: player.name,
+    levelKey: player.levelKey,
+  }));
+  lineup = participants;
+  game = createGame(participants);
+  selectedTarget = '20';
+  elements.winnerDialog.close();
+  persistActiveGame();
+  showGame();
+}
+
+function resetCurrentGame() {
+  if (!game) return;
+  if (!window.confirm('Aktuelles Cricket-Spiel wirklich neu starten?')) return;
+  const participants = game.players.map((player) => ({
+    instanceId: uid(player.type === 'bot' ? 'bot' : 'seat'),
+    profileId: player.profileId,
+    type: player.type,
+    name: player.name,
+    levelKey: player.levelKey,
+  }));
+  game = createGame(participants);
+  selectedTarget = '20';
+  persistActiveGame();
+  renderGame();
+}
+
+function leaveGameForSetup() {
+  if (game && !game.finished && !window.confirm('Das laufende Spiel bleibt gespeichert. Zur Einrichtung wechseln?')) return;
+  showSetup();
+}
+
+function winnerBackToSetup() {
+  elements.winnerDialog.close();
+  game = null;
+  showSetup();
+}
+
+function renderHistory() {
+  elements.clearHistoryBtn.disabled = history.length === 0;
+  if (!history.length) {
+    elements.cricketHistory.className = 'cricket-history empty-copy';
+    elements.cricketHistory.textContent = 'Noch kein Cricket-Spiel abgeschlossen.';
+    return;
+  }
+
+  elements.cricketHistory.className = 'cricket-history';
+  elements.cricketHistory.innerHTML = [...history].reverse().slice(0, 8).map((entry) => {
+    const date = new Intl.DateTimeFormat('de-AT', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(entry.finishedAt));
+    const names = entry.players.map((player) => player.name).join(', ');
+    return `<div class="history-row"><div><div class="history-winner">${escapeHtml(entry.winnerName)} gewinnt</div><div class="lineup-meta">${escapeHtml(names)}</div></div><div class="history-meta">${escapeHtml(date)}<br>${Number(entry.rounds) || 1} Runden</div></div>`;
+  }).join('');
+}
+
+function clearHistory() {
+  if (!history.length || !window.confirm('Den gesamten Cricket-Verlauf löschen?')) return;
+  history = [];
+  saveJson(HISTORY_KEY, history);
+  renderHistory();
+}
+
+function registerServiceWorker() {
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+
+function initEvents() {
+  elements.createPlayerForm.addEventListener('submit', createProfile);
+  elements.savedPlayers.addEventListener('click', (event) => {
+    const addButton = event.target.closest('[data-add-profile]');
+    if (addButton) addProfile(addButton.dataset.addProfile);
+    const deleteButton = event.target.closest('[data-delete-profile]');
+    if (deleteButton) deleteProfile(deleteButton.dataset.deleteProfile);
+  });
+  elements.selectedLineup.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-remove-seat]');
+    if (button) removeParticipant(button.dataset.removeSeat);
+  });
+  elements.botDifficulty.addEventListener('change', renderBotDescription);
+  elements.addBotBtn.addEventListener('click', addBot);
+  elements.startGameBtn.addEventListener('click', startGameFromLineup);
+  elements.clearHistoryBtn.addEventListener('click', clearHistory);
+  elements.backToSetupBtn.addEventListener('click', leaveGameForSetup);
+  elements.resetGameBtn.addEventListener('click', resetCurrentGame);
+  elements.targetButtons.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-target]');
+    if (button) selectTarget(button.dataset.target);
+  });
+  elements.multiplierButtons.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-multiplier]');
+    if (button && !button.disabled) humanHit(Number(button.dataset.multiplier));
+  });
+  elements.botThrowBtn.addEventListener('click', botThrow);
+  elements.undoDartBtn.addEventListener('click', restoreUndo);
+  elements.endTurnBtn.addEventListener('click', endTurnEarly);
+  elements.rematchBtn.addEventListener('click', rematch);
+  elements.winnerSetupBtn.addEventListener('click', winnerBackToSetup);
+}
+
+function init() {
+  initEvents();
+  renderBotDescription();
+  renderLineup();
+  renderHistory();
+  registerServiceWorker();
+
+  const active = loadActiveGame();
+  if (active) {
+    game = active;
+    lineup = game.players.map((player) => ({
+      instanceId: uid(player.type === 'bot' ? 'bot' : 'seat'),
+      profileId: player.profileId,
+      type: player.type,
+      name: player.name,
+      levelKey: player.levelKey,
+    }));
+    selectedTarget = chooseSuggestedTarget(game.currentPlayerIndex);
+    showGame();
+  }
+}
+
+init();
