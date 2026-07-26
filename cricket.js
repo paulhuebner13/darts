@@ -59,7 +59,6 @@ const elements = {
   playerNameInput: document.getElementById('playerNameInput'),
   savedPlayers: document.getElementById('savedPlayers'),
   botDifficulty: document.getElementById('botDifficulty'),
-  botDescription: document.getElementById('botDescription'),
   addBotBtn: document.getElementById('addBotBtn'),
   cricketHistory: document.getElementById('cricketHistory'),
   clearHistoryBtn: document.getElementById('clearHistoryBtn'),
@@ -195,7 +194,7 @@ function renderProfiles() {
   elements.savedPlayers.innerHTML = profiles.map((profile) => `
     <div class="saved-player-row">
       <span class="saved-player-name">${escapeHtml(profile.name)}</span>
-      <button class="add-profile" type="button" data-add-profile="${escapeHtml(profile.id)}" ${isProfileSelected(profile.id) || lineup.length >= MAX_PLAYERS ? 'disabled' : ''}>Hinzufügen</button>
+      <button class="add-profile" type="button" data-add-profile="${escapeHtml(profile.id)}" ${isProfileSelected(profile.id) || lineup.length >= MAX_PLAYERS ? 'disabled' : ''}>+</button>
       <button class="delete-profile" type="button" data-delete-profile="${escapeHtml(profile.id)}" aria-label="${escapeHtml(profile.name)} löschen">×</button>
     </div>
   `).join('');
@@ -230,13 +229,6 @@ function renderLineup() {
   renderProfiles();
 }
 
-function renderBotDescription() {
-  const level = BOT_LEVELS[elements.botDifficulty.value] || BOT_LEVELS.normal;
-  const bullPercent = Math.round(Math.min(0.80, BASE_ACCURACY.anyBull * level.factor) * 100);
-  const triplePercent = Math.round(Math.min(0.52, BASE_ACCURACY.numericTriple * level.factor) * 100);
-  elements.botDescription.textContent = `${level.description} Richtwert: etwa ${triplePercent} % direktes Triple und ${bullPercent} % irgendein Bull bei entsprechendem Ziel.`;
-}
-
 function createProfile(event) {
   event.preventDefault();
   const name = elements.playerNameInput.value.trim().replace(/\s+/g, ' ').slice(0, 24);
@@ -257,6 +249,7 @@ function createProfile(event) {
   setSetupMessage('');
 
   if (canAddParticipant()) lineup.push(participantFromProfile(profile));
+  renderProfiles();
   renderLineup();
 }
 
@@ -276,6 +269,7 @@ function deleteProfile(profileId) {
   profiles = profiles.filter((entry) => entry.id !== profileId);
   lineup = lineup.filter((participant) => participant.profileId !== profileId);
   saveJson(PROFILE_KEY, profiles);
+  renderProfiles();
   renderLineup();
 }
 
@@ -512,7 +506,7 @@ function renderTargetButtons() {
     const closed = Number(player.marks[target]) >= 3;
     return `<button class="target-button ${closed ? 'closed-target' : ''}" data-target="${escapeHtml(target)}" type="button">${escapeHtml(target)}</button>`;
   });
-  numberButtons.push('<button class="target-button miss-target-button" data-target="Miss" type="button">Miss</button>');
+  numberButtons.push('<button class="target-button miss-target-button" data-target="Miss" type="button">Nicht getroffen</button>');
   elements.targetButtons.innerHTML = numberButtons.join('');
 }
 
@@ -561,7 +555,7 @@ function renderScoreboard() {
 function scheduleAutomaticBotTurn() {
   window.clearTimeout(botStartTimer);
   if (!game || game.finished || botBusy || getCurrentPlayer().type !== 'bot') return;
-  botStartTimer = window.setTimeout(() => botThrow(), 90);
+  botStartTimer = window.setTimeout(() => botThrow(), 35);
 }
 
 function renderGame() {
@@ -754,7 +748,7 @@ async function botThrow() {
   const remaining = 3 - game.dartsThisTurn.length;
 
   for (let i = 0; i < remaining; i += 1) {
-    await wait(105);
+    await wait(70);
     if (!game || game.finished || game.currentPlayerIndex !== playerIndex) break;
     const player = game.players[playerIndex];
     const aim = chooseBotAim(playerIndex);
@@ -883,7 +877,6 @@ function initEvents() {
     const button = event.target.closest('[data-remove-seat]');
     if (button) removeParticipant(button.dataset.removeSeat);
   });
-  elements.botDifficulty.addEventListener('change', renderBotDescription);
   elements.addBotBtn.addEventListener('click', addBot);
   elements.startGameBtn.addEventListener('click', startGameFromLineup);
   elements.clearHistoryBtn.addEventListener('click', clearHistory);
@@ -904,7 +897,7 @@ function initEvents() {
 
 function init() {
   initEvents();
-  renderBotDescription();
+  renderProfiles();
   renderLineup();
   renderHistory();
   registerServiceWorker();
@@ -923,5 +916,14 @@ function init() {
     showGame();
   }
 }
+
+
+window.addEventListener('pageshow', () => {
+  profiles = sanitizeProfiles(loadJson(PROFILE_KEY, []));
+  history = sanitizeHistory(loadJson(HISTORY_KEY, []));
+  renderProfiles();
+  renderLineup();
+  renderHistory();
+});
 
 init();

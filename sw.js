@@ -1,4 +1,4 @@
-const CACHE_NAME = 'darts-trainer-cache-v9-cricket';
+const CACHE_NAME = 'darts-trainer-cache-v12-cricket-layout';
 const ASSETS = [
   './',
   './index.html',
@@ -6,7 +6,9 @@ const ASSETS = [
   './app.js',
   './cricket.html',
   './cricket.css',
+  './cricket.css?v=12',
   './cricket.js',
+  './cricket.js?v=12',
   './manifest.json',
   './icon.svg'
 ];
