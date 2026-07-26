@@ -272,7 +272,7 @@ input:focus, select:focus { border-color: var(--primary); }
 .history-winner { font-weight: 850; }
 .history-meta { color: var(--muted); text-align: right; }
 
-/* Kompakte Spielansicht */
+/* Mobile Spielansicht: nutzt die verfügbare Höhe, ohne gestaucht zu wirken. */
 body.game-active {
   overflow: hidden;
   overscroll-behavior: none;
@@ -280,7 +280,7 @@ body.game-active {
 body.game-active .cricket-shell {
   width: min(100%, 680px);
   height: 100dvh;
-  padding: max(5px, env(safe-area-inset-top, 0)) 5px max(5px, env(safe-area-inset-bottom, 0));
+  padding: max(7px, env(safe-area-inset-top, 0)) 7px max(7px, env(safe-area-inset-bottom, 0));
 }
 body.game-active .topbar { display: none; }
 body.game-active main { height: 100%; min-height: 0; }
@@ -288,25 +288,25 @@ body.game-active main { height: 100%; min-height: 0; }
   height: 100%;
   min-height: 0;
   display: grid;
-  grid-template-rows: 32px auto auto;
+  grid-template-rows: auto clamp(300px, 57dvh, 500px) auto;
   align-content: start;
-  gap: 4px;
+  gap: clamp(6px, 1.1dvh, 10px);
 }
 .game-toolbar {
   display: grid;
-  grid-template-columns: 32px 1fr 32px 32px 32px;
+  grid-template-columns: clamp(36px, 5.8dvh, 46px) 1fr repeat(3, clamp(36px, 5.8dvh, 46px));
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 .toolbar-button {
-  width: 32px;
-  height: 32px;
+  width: clamp(36px, 5.8dvh, 46px);
+  height: clamp(36px, 5.8dvh, 46px);
   padding: 0;
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: 11px;
   background: var(--card);
   color: var(--text);
-  font-size: 0.96rem;
+  font-size: clamp(1rem, 2.6dvh, 1.25rem);
   font-weight: 900;
 }
 .toolbar-button:disabled { opacity: 0.25; }
@@ -316,11 +316,11 @@ body.game-active main { height: 100%; min-height: 0; }
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 7px;
+  gap: clamp(8px, 1.7dvh, 12px);
 }
 .turn-dots span {
-  width: 8px;
-  height: 8px;
+  width: clamp(9px, 1.5dvh, 12px);
+  height: clamp(9px, 1.5dvh, 12px);
   border: 1px solid var(--muted);
   border-radius: 50%;
 }
@@ -328,10 +328,11 @@ body.game-active main { height: 100%; min-height: 0; }
 
 .scoreboard-wrap {
   min-height: 0;
+  height: 100%;
   overflow-x: auto;
   overflow-y: hidden;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 15px;
   background: var(--card);
   scroll-behavior: smooth;
   scrollbar-width: thin;
@@ -339,118 +340,140 @@ body.game-active main { height: 100%; min-height: 0; }
 .scoreboard {
   width: max-content;
   min-width: 100%;
+  height: 100%;
   border-collapse: collapse;
   table-layout: fixed;
 }
 .scoreboard th,
 .scoreboard td {
-  height: 27px;
-  padding: 0 2px;
+  height: clamp(36px, 6.2dvh, 61px);
+  padding: 0 3px;
   text-align: center;
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
+  transition: opacity .18s ease, background .18s ease;
 }
 .scoreboard th:last-child,
 .scoreboard td:last-child { border-right: 0; }
 .scoreboard tbody tr:last-child th,
 .scoreboard tbody tr:last-child td { border-bottom: 0; }
-.scoreboard thead th { height: 35px; }
+.scoreboard thead th { height: clamp(44px, 7dvh, 64px); }
 .scoreboard .target-head,
 .scoreboard .target-cell {
   position: sticky;
   left: 0;
   z-index: 3;
-  width: 34px;
-  min-width: 34px;
-  max-width: 34px;
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
   background: var(--card-2);
 }
 .scoreboard .target-head { z-index: 5; color: transparent; }
 .scoreboard .target-cell {
   color: var(--warning);
-  font-size: 0.78rem;
+  font-size: clamp(.82rem, 2.1dvh, 1.02rem);
   font-weight: 900;
 }
 .scoreboard .player-head,
 .scoreboard .mark-cell {
-  width: 66px;
-  min-width: 66px;
-  max-width: 66px;
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
 }
-.scoreboard .player-head { vertical-align: middle; background: var(--card); }
+.scoreboard .player-head {
+  position: relative;
+  vertical-align: middle;
+  background: var(--card);
+}
+.scoreboard .head-rank {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  color: var(--primary);
+  font-size: .63rem;
+  font-weight: 900;
+}
 .scoreboard .head-name {
   display: block;
-  max-width: 61px;
+  max-width: 66px;
   margin: 0 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.61rem;
+  font-size: clamp(.66rem, 1.8dvh, .82rem);
   line-height: 1;
 }
 .scoreboard .head-score {
   display: block;
-  margin-top: 2px;
+  margin-top: 4px;
   color: var(--warning);
-  font-size: 0.88rem;
+  font-size: clamp(.92rem, 2.5dvh, 1.18rem);
   line-height: 1;
 }
 .scoreboard .mark-cell {
-  font-size: 0.91rem;
-  font-weight: 900;
+  font-size: clamp(1.15rem, 3.8dvh, 1.85rem);
+  font-weight: 700;
 }
-.scoreboard .mark-cell.closed { color: var(--success); }
+.scoreboard .mark-cell.closed {
+  color: var(--success);
+  font-size: clamp(1.45rem, 4.4dvh, 2.1rem);
+  line-height: 1;
+}
 .scoreboard .player-head.active-player,
 .scoreboard .mark-cell.active-player {
   background: color-mix(in srgb, var(--primary) 12%, var(--card));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 35%, transparent);
 }
+.scoreboard .placed-player { opacity: .52; }
+.scoreboard tbody tr.target-complete { opacity: .32; }
+.scoreboard tbody tr.target-complete .target-cell { background: var(--card-2); }
 
 .throw-area {
   min-width: 0;
-  padding: 4px;
+  padding: clamp(7px, 1.3dvh, 11px);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 15px;
   background: var(--card);
 }
 .human-controls[hidden],
 .bot-status[hidden] { display: none !important; }
 .target-button-grid {
+  width: min(100%, 440px);
+  margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(4, 62px);
-  justify-content: center;
-  gap: 4px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(5px, 1dvh, 8px);
 }
 .target-button {
-  width: 62px;
-  height: 31px;
+  width: 100%;
+  height: clamp(39px, 6.2dvh, 52px);
   min-width: 0;
-  padding: 0 2px;
+  padding: 0 4px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--card-2);
   color: var(--text);
-  font-size: 0.82rem;
+  font-size: clamp(.9rem, 2.4dvh, 1.08rem);
   font-weight: 900;
 }
 .target-button:active { transform: scale(0.97); }
 .target-button.closed-target { color: var(--success); border-color: color-mix(in srgb, var(--success) 45%, var(--border)); }
-.target-button.miss-target-button { color: var(--danger); font-size: 0.76rem; }
+.target-button.miss-target-button { color: var(--danger); font-size: clamp(.8rem, 2.1dvh, .96rem); }
 .multiplier-grid {
+  width: min(100%, 300px);
+  margin: clamp(6px, 1.1dvh, 9px) auto 0;
   display: grid;
-  grid-template-columns: repeat(2, 92px);
-  justify-content: center;
-  gap: 4px;
-  margin-top: 4px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(6px, 1.1dvh, 9px);
 }
 .modifier-button {
-  width: 92px;
-  height: 30px;
+  width: 100%;
+  height: clamp(40px, 6.3dvh, 52px);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--card-2);
   color: var(--text);
-  font-size: 0.79rem;
+  font-size: clamp(.86rem, 2.3dvh, 1rem);
   font-weight: 850;
 }
 .modifier-button.selected {
@@ -459,18 +482,18 @@ body.game-active main { height: 100%; min-height: 0; }
   color: #fff;
 }
 .bot-status {
-  height: 96px;
+  min-height: clamp(132px, 20dvh, 174px);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 9px;
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: .9rem;
   font-weight: 800;
 }
 .bot-loading-dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: var(--primary);
   animation: botPulse 0.32s ease-in-out infinite alternate;
@@ -494,13 +517,16 @@ body.game-active main { height: 100%; min-height: 0; }
   text-align: center;
   box-shadow: var(--shadow);
 }
-.trophy-mark { color: var(--warning); font-size: 0.7rem; font-weight: 900; letter-spacing: .3em; }
-.winner-content h2 { margin: 7px 0 4px; }
+.trophy-mark { color: var(--primary); font-size: clamp(2rem, 10vw, 3.6rem); font-weight: 950; letter-spacing: .03em; line-height: 1; }
+.winner-content h2 { margin: 10px 0 4px; font-size: clamp(1.35rem, 5vw, 1.9rem); }
 .winner-content p { color: var(--muted); }
 .final-scores { display: grid; gap: 6px; margin: 14px 0; }
 .final-score-row { display: flex; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--card-2); }
-.final-score-row.winner { color: var(--warning); }
-.winner-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.final-score-row.winner { color: var(--primary); }
+.final-score-row.still-playing { opacity: .62; }
+.winner-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.continue-placement-button { grid-column: 1 / -1; margin-top: 0; }
+.continue-placement-button[hidden] { display: none; }
 
 .sr-only {
   position: absolute;
@@ -523,20 +549,21 @@ body.game-active main { height: 100%; min-height: 0; }
   .icon-button { width: 44px; min-height: 44px; }
 }
 
-@media (max-width: 330px) {
-  .target-button-grid { grid-template-columns: repeat(4, 56px); }
-  .target-button { width: 56px; }
+@media (max-width: 350px) {
+  body.game-active .cricket-shell { padding-left: 5px; padding-right: 5px; }
   .scoreboard .player-head,
-  .scoreboard .mark-cell { width: 61px; min-width: 61px; max-width: 61px; }
+  .scoreboard .mark-cell { width: 66px; min-width: 66px; max-width: 66px; }
+  .scoreboard .target-head,
+  .scoreboard .target-cell { width: 36px; min-width: 36px; max-width: 36px; }
 }
 
-@media (max-height: 430px) {
-  .game-screen.active { grid-template-rows: 29px auto auto; gap: 3px; }
-  .game-toolbar { grid-template-columns: 29px 1fr 29px 29px 29px; gap: 3px; }
-  .toolbar-button { width: 29px; height: 29px; border-radius: 8px; }
-  .scoreboard th, .scoreboard td { height: 24px; }
-  .scoreboard thead th { height: 31px; }
-  .target-button { height: 28px; }
-  .modifier-button { height: 27px; }
-  .bot-status { height: 86px; }
+@media (max-height: 650px) {
+  .game-screen.active { grid-template-rows: auto clamp(270px, 55dvh, 350px) auto; gap: 5px; }
+  .toolbar-button { width: 34px; height: 34px; }
+  .game-toolbar { grid-template-columns: 34px 1fr repeat(3, 34px); gap: 4px; }
+  .scoreboard th, .scoreboard td { height: 33px; }
+  .scoreboard thead th { height: 40px; }
+  .target-button { height: 36px; }
+  .modifier-button { height: 36px; }
+  .throw-area { padding: 6px; }
 }

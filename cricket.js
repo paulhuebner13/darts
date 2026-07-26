@@ -6,6 +6,7 @@ const HISTORY_KEY = 'darts-cricket-history-v1';
 const THEME_KEY = 'darts-trainer-theme';
 const MAX_PLAYERS = 6;
 const CRICKET_TARGETS = ['20', '19', '18', '17', '16', '15', 'Bull'];
+const INPUT_TARGETS = ['15', '16', '17', '18', '19', '20', 'Bull'];
 const TARGET_VALUES = { '20': 20, '19': 19, '18': 18, '17': 17, '16': 16, '15': 15, Bull: 25 };
 const BOARD_ORDER = ['20', '1', '18', '4', '13', '6', '10', '15', '2', '17', '3', '19', '7', '16', '8', '11', '14', '9', '12', '5'];
 
@@ -74,9 +75,11 @@ const elements = {
   multiplierButtons: document.getElementById('multiplierButtons'),
   undoDartBtn: document.getElementById('undoDartBtn'),
   winnerDialog: document.getElementById('winnerDialog'),
+  placementBadge: document.getElementById('placementBadge'),
   winnerTitle: document.getElementById('winnerTitle'),
   winnerSummary: document.getElementById('winnerSummary'),
   finalScores: document.getElementById('finalScores'),
+  continuePlacementBtn: document.getElementById('continuePlacementBtn'),
   rematchBtn: document.getElementById('rematchBtn'),
   winnerSetupBtn: document.getElementById('winnerSetupBtn'),
   themeToggle: document.getElementById('themeToggle'),
@@ -326,6 +329,9 @@ function createGame(participants) {
     undoStack: [],
     finished: false,
     winnerIndex: null,
+    placements: [],
+    pausedForPlacement: false,
+    pendingPlacementIndex: null,
   };
 }
 
@@ -353,6 +359,13 @@ function loadActiveGame() {
   raw.undoStack = Array.isArray(raw.undoStack) ? raw.undoStack.slice(-120) : [];
   raw.log = Array.isArray(raw.log) ? raw.log.slice(-80) : [];
   raw.dartsThisTurn = Array.isArray(raw.dartsThisTurn) ? raw.dartsThisTurn.slice(0, 3) : [];
+  raw.players.forEach((player) => {
+    const placement = Number(player.placement);
+    player.placement = Number.isInteger(placement) && placement > 0 ? placement : null;
+  });
+  raw.placements = Array.isArray(raw.placements) ? raw.placements : [];
+  raw.pausedForPlacement = Boolean(raw.pausedForPlacement);
+  raw.pendingPlacementIndex = Number.isInteger(raw.pendingPlacementIndex) ? raw.pendingPlacementIndex : null;
   return raw;
 }
 
@@ -412,14 +425,29 @@ function getCurrentPlayer() {
 }
 
 function getMarkSymbol(marks) {
-  if (marks <= 0) return '–';
+  if (marks <= 0) return '';
   if (marks === 1) return '╱';
   if (marks === 2) return '✕';
-  return '●';
+  return '○';
+}
+
+function isPlayerActive(player) {
+  return !Number.isInteger(Number(player.placement)) || Number(player.placement) <= 0;
+}
+
+function getActivePlayerIndices() {
+  return game.players
+    .map((player, index) => ({ player, index }))
+    .filter(({ player }) => isPlayerActive(player))
+    .map(({ index }) => index);
 }
 
 function isTargetOpenForOpponent(playerIndex, target) {
-  return game.players.some((player, index) => index !== playerIndex && Number(player.marks[target]) < 3);
+  return game.players.some((player, index) => (
+    index !== playerIndex
+    && isPlayerActive(player)
+    && Number(player.marks[target]) < 3
+  ));
 }
 
 function allTargetsClosed(player) {
@@ -427,10 +455,12 @@ function allTargetsClosed(player) {
 }
 
 function winningPlayerIndex() {
-  return game.players.findIndex((player) => {
+  const activeIndices = getActivePlayerIndices();
+  return activeIndices.find((playerIndex) => {
+    const player = game.players[playerIndex];
     if (!allTargetsClosed(player)) return false;
-    return game.players.every((opponent) => player.score >= opponent.score);
-  });
+    return activeIndices.every((opponentIndex) => player.score >= game.players[opponentIndex].score);
+  }) ?? -1;
 }
 
 function dartLabel(dart) {
@@ -469,7 +499,7 @@ function addLog(message) {
 }
 
 function recordDart(dart, source = 'human') {
-  if (!game || game.finished || botBusy && source !== 'bot') return;
+  if (!game || game.finished || game.pausedForPlacement || botBusy && source !== 'bot') return;
   if (game.dartsThisTurn.length >= 3) return;
 
   pushUndo();
@@ -490,7 +520,7 @@ function recordDart(dart, source = 'human') {
 
   const winnerIndex = winningPlayerIndex();
   if (winnerIndex >= 0) {
-    finishGame(winnerIndex);
+    registerPlacement(winnerIndex);
     return;
   }
 
@@ -502,11 +532,21 @@ function recordDart(dart, source = 'human') {
   }
 }
 
+function findNextActivePlayerIndex(fromIndex) {
+  for (let offset = 1; offset <= game.players.length; offset += 1) {
+    const index = (fromIndex + offset) % game.players.length;
+    if (isPlayerActive(game.players[index])) return index;
+  }
+  return -1;
+}
+
 function advanceTurn() {
-  if (!game || game.finished) return;
+  if (!game || game.finished || game.pausedForPlacement) return;
   const previousIndex = game.currentPlayerIndex;
-  game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.players.length;
-  if (game.currentPlayerIndex === 0 && previousIndex === game.players.length - 1) game.round += 1;
+  const nextIndex = findNextActivePlayerIndex(previousIndex);
+  if (nextIndex < 0) return;
+  if (nextIndex <= previousIndex) game.round += 1;
+  game.currentPlayerIndex = nextIndex;
   game.dartsThisTurn = [];
   selectedMultiplier = 1;
   persistActiveGame();
@@ -514,7 +554,7 @@ function advanceTurn() {
 }
 
 function endTurnEarly() {
-  if (!game || game.finished || botBusy) return;
+  if (!game || game.finished || game.pausedForPlacement || botBusy) return;
   pushUndo();
   addLog(`<strong>${escapeHtml(getCurrentPlayer().name)}</strong>: Zug beendet`);
   advanceTurn();
@@ -522,7 +562,7 @@ function endTurnEarly() {
 
 function renderTargetButtons() {
   const player = getCurrentPlayer();
-  const numberButtons = CRICKET_TARGETS.map((target) => {
+  const numberButtons = INPUT_TARGETS.map((target) => {
     const closed = Number(player.marks[target]) >= 3;
     return `<button class="target-button ${closed ? 'closed-target' : ''}" data-target="${escapeHtml(target)}" type="button">${escapeHtml(target)}</button>`;
   });
@@ -551,19 +591,26 @@ function scrollActivePlayerIntoView() {
 }
 
 function renderScoreboard() {
-  const headerCells = game.players.map((player, index) => `
-    <th class="player-head ${index === game.currentPlayerIndex ? 'active-player' : ''}" data-player-index="${index}">
-      <span class="head-name">${escapeHtml(player.name)}</span>
-      <span class="head-score">${player.score}</span>
-    </th>
-  `).join('');
+  const headerCells = game.players.map((player, index) => {
+    const placed = !isPlayerActive(player);
+    const rank = placed ? `<span class="head-rank">${Number(player.placement)}.</span>` : '';
+    return `
+      <th class="player-head ${index === game.currentPlayerIndex && !game.pausedForPlacement ? 'active-player' : ''} ${placed ? 'placed-player' : ''}" data-player-index="${index}">
+        ${rank}
+        <span class="head-name">${escapeHtml(player.name)}</span>
+        <span class="head-score">${player.score}</span>
+      </th>
+    `;
+  }).join('');
 
   const rows = CRICKET_TARGETS.map((target) => {
+    const targetComplete = game.players.every((player) => Number(player.marks[target]) >= 3);
     const cells = game.players.map((player, index) => {
       const marks = Math.min(3, Number(player.marks[target]) || 0);
-      return `<td class="mark-cell ${marks >= 3 ? 'closed' : ''} ${index === game.currentPlayerIndex ? 'active-player' : ''}" aria-label="${escapeHtml(player.name)} ${escapeHtml(target)}: ${marks} Marks">${getMarkSymbol(marks)}</td>`;
+      const placed = !isPlayerActive(player);
+      return `<td class="mark-cell ${marks >= 3 ? 'closed' : ''} ${index === game.currentPlayerIndex && !game.pausedForPlacement ? 'active-player' : ''} ${placed ? 'placed-player' : ''}" aria-label="${escapeHtml(player.name)} ${escapeHtml(target)}: ${marks} Marks">${getMarkSymbol(marks)}</td>`;
     }).join('');
-    return `<tr><th class="target-cell">${escapeHtml(target)}</th>${cells}</tr>`;
+    return `<tr class="${targetComplete ? 'target-complete' : ''}"><th class="target-cell">${escapeHtml(target)}</th>${cells}</tr>`;
   }).join('');
 
   elements.scoreboard.innerHTML = `
@@ -574,7 +621,7 @@ function renderScoreboard() {
 
 function scheduleAutomaticBotTurn() {
   window.clearTimeout(botStartTimer);
-  if (!game || game.finished || botBusy || getCurrentPlayer().type !== 'bot') return;
+  if (!game || game.finished || game.pausedForPlacement || botBusy || getCurrentPlayer().type !== 'bot') return;
   botStartTimer = window.setTimeout(() => botThrow(), 35);
 }
 
@@ -582,9 +629,10 @@ function renderGame() {
   if (!game) return;
   const player = getCurrentPlayer();
   const isBot = player.type === 'bot';
+  const isPaused = Boolean(game.pausedForPlacement);
 
-  elements.humanControls.hidden = isBot;
-  elements.botControls.hidden = !isBot;
+  elements.humanControls.hidden = isBot || isPaused;
+  elements.botControls.hidden = !isBot || isPaused;
   elements.undoDartBtn.disabled = !game.undoStack.length || botBusy;
 
   renderTargetButtons();
@@ -597,7 +645,7 @@ function renderGame() {
 }
 
 function recordHumanTarget(target) {
-  if (!game || game.finished || botBusy || getCurrentPlayer().type !== 'human') return;
+  if (!game || game.finished || game.pausedForPlacement || botBusy || getCurrentPlayer().type !== 'human') return;
 
   if (target === 'Miss') {
     selectedMultiplier = 1;
@@ -612,7 +660,7 @@ function recordHumanTarget(target) {
 }
 
 function selectMultiplier(multiplier) {
-  if (!game || botBusy || getCurrentPlayer().type !== 'human') return;
+  if (!game || game.pausedForPlacement || botBusy || getCurrentPlayer().type !== 'human') return;
   const value = Number(multiplier);
   if (![2, 3].includes(value)) return;
   selectedMultiplier = selectedMultiplier === value ? 1 : value;
@@ -719,10 +767,13 @@ function resolveBotDart(target, aimMultiplier, levelKey) {
 function targetPriority(playerIndex, target) {
   const player = game.players[playerIndex];
   const ownMarks = Number(player.marks[target]) || 0;
-  const openOpponents = game.players.filter((opponent, index) => index !== playerIndex && Number(opponent.marks[target]) < 3).length;
+  const activeOpponents = game.players.filter((opponent, index) => index !== playerIndex && isPlayerActive(opponent));
+  const openOpponents = activeOpponents.filter((opponent) => Number(opponent.marks[target]) < 3).length;
   if (openOpponents === 0 && ownMarks >= 3) return -Infinity;
 
-  const maxOpponentScore = Math.max(...game.players.filter((_, index) => index !== playerIndex).map((opponent) => opponent.score));
+  const maxOpponentScore = activeOpponents.length
+    ? Math.max(...activeOpponents.map((opponent) => opponent.score))
+    : player.score;
   const scoreDeficit = Math.max(0, maxOpponentScore - player.score);
   const closingNeed = Math.max(0, 3 - ownMarks);
   const pointPotential = ownMarks >= 3 && openOpponents > 0 ? TARGET_VALUES[target] : 0;
@@ -760,7 +811,7 @@ function wait(milliseconds) {
 }
 
 async function botThrow() {
-  if (!game || game.finished || getCurrentPlayer().type !== 'bot' || botBusy) return;
+  if (!game || game.finished || game.pausedForPlacement || getCurrentPlayer().type !== 'bot' || botBusy) return;
   botBusy = true;
   renderGame();
 
@@ -769,7 +820,7 @@ async function botThrow() {
 
   for (let i = 0; i < remaining; i += 1) {
     await wait(70);
-    if (!game || game.finished || game.currentPlayerIndex !== playerIndex) break;
+    if (!game || game.finished || game.pausedForPlacement || game.currentPlayerIndex !== playerIndex) break;
     const player = game.players[playerIndex];
     const aim = chooseBotAim(playerIndex);
     const dart = resolveBotDart(aim.target, aim.aimMultiplier, player.levelKey);
@@ -777,40 +828,118 @@ async function botThrow() {
   }
 
   botBusy = false;
-  if (game && !game.finished) {
+  if (game && !game.finished && !game.pausedForPlacement) {
     persistActiveGame();
     renderGame();
   }
 }
 
-function finishGame(winnerIndex) {
-  window.clearTimeout(botStartTimer);
+function placementLabel(place) {
+  return `${place}. Platz`;
+}
+
+function sortedRankingPlayers() {
+  return [...game.players].sort((a, b) => {
+    const aPlace = Number(a.placement) || Number.POSITIVE_INFINITY;
+    const bPlace = Number(b.placement) || Number.POSITIVE_INFINITY;
+    if (aPlace !== bPlace) return aPlace - bPlace;
+    return b.score - a.score;
+  });
+}
+
+function renderPlacementScores() {
+  elements.finalScores.innerHTML = sortedRankingPlayers().map((player) => {
+    const place = Number(player.placement);
+    const placeText = Number.isInteger(place) && place > 0 ? `${place}.` : '…';
+    return `<div class="final-score-row ${place === 1 ? 'winner' : ''} ${place ? 'ranked' : 'still-playing'}"><span><strong>${placeText}</strong> ${escapeHtml(player.name)}</span><strong>${player.score} Punkte</strong></div>`;
+  }).join('');
+}
+
+function openPlacementDialog(playerIndex, finalGame = false, automaticLastPlayer = null) {
+  const player = game.players[playerIndex];
+  const place = Number(player.placement) || 1;
+  elements.placementBadge.textContent = placementLabel(place).toUpperCase();
+  elements.winnerTitle.textContent = `${player.name} wird ${place}.`;
+  elements.winnerSummary.textContent = finalGame && automaticLastPlayer
+    ? `${automaticLastPlayer.name} belegt damit automatisch den ${placementLabel(automaticLastPlayer.placement)}.`
+    : 'Die übrigen Spieler können jetzt um die nächsten Plätze weiterspielen.';
+  elements.continuePlacementBtn.hidden = finalGame;
+  elements.rematchBtn.textContent = finalGame ? 'Revanche' : 'Neu starten';
+  renderPlacementScores();
+
+  if (typeof elements.winnerDialog.showModal === 'function') {
+    if (!elements.winnerDialog.open) elements.winnerDialog.showModal();
+  } else {
+    window.alert(`${player.name}: ${placementLabel(place)}`);
+  }
+}
+
+function saveCompletedRanking() {
+  const winner = game.players.find((player) => Number(player.placement) === 1) || game.players[0];
   game.finished = true;
-  game.winnerIndex = winnerIndex;
-  const winner = game.players[winnerIndex];
+  game.winnerIndex = game.players.indexOf(winner);
   const record = {
     id: game.id,
     finishedAt: Date.now(),
     startedAt: game.startedAt,
     rounds: game.round,
     winnerName: winner.name,
-    players: game.players.map((player) => ({ name: player.name, type: player.type, score: player.score })),
+    players: sortedRankingPlayers().map((player) => ({
+      name: player.name,
+      type: player.type,
+      score: player.score,
+      placement: player.placement,
+    })),
   };
   history.push(record);
   history = history.slice(-20);
   saveJson(HISTORY_KEY, history);
   localStorage.removeItem(ACTIVE_GAME_KEY);
+  renderHistory();
+}
+
+function assignPlacement(playerIndex, place) {
+  const player = game.players[playerIndex];
+  player.placement = place;
+  game.placements.push({
+    playerIndex,
+    instanceId: player.instanceId,
+    name: player.name,
+    placement: place,
+    score: player.score,
+    at: Date.now(),
+  });
+}
+
+function registerPlacement(playerIndex) {
+  window.clearTimeout(botStartTimer);
+  const place = game.placements.length + 1;
+  assignPlacement(playerIndex, place);
+  game.pendingPlacementIndex = playerIndex;
+  game.pausedForPlacement = true;
+  game.dartsThisTurn = [];
+
+  const activeIndices = getActivePlayerIndices();
+  let automaticLastPlayer = null;
+  if (activeIndices.length === 1) {
+    const lastIndex = activeIndices[0];
+    assignPlacement(lastIndex, game.placements.length + 1);
+    automaticLastPlayer = game.players[lastIndex];
+    saveCompletedRanking();
+  } else {
+    persistActiveGame();
+  }
 
   renderGame();
-  elements.winnerTitle.textContent = `${winner.name} gewinnt!`;
-  elements.winnerSummary.textContent = `Alle Cricket-Felder geschlossen und nach ${game.round} Runden mindestens punktgleich vorne.`;
-  elements.finalScores.innerHTML = [...game.players]
-    .sort((a, b) => b.score - a.score)
-    .map((player) => `<div class="final-score-row ${player.instanceId === winner.instanceId ? 'winner' : ''}"><span>${escapeHtml(player.name)}</span><strong>${player.score} Punkte</strong></div>`)
-    .join('');
+  openPlacementDialog(playerIndex, game.finished, automaticLastPlayer);
+}
 
-  if (typeof elements.winnerDialog.showModal === 'function') elements.winnerDialog.showModal();
-  else window.alert(`${winner.name} gewinnt!`);
+function continueAfterPlacement() {
+  if (!game || game.finished || !game.pausedForPlacement) return;
+  elements.winnerDialog.close();
+  game.pausedForPlacement = false;
+  game.pendingPlacementIndex = null;
+  advanceTurn();
 }
 
 function rematch() {
@@ -854,6 +983,7 @@ function leaveGameForSetup() {
 
 function winnerBackToSetup() {
   elements.winnerDialog.close();
+  localStorage.removeItem(ACTIVE_GAME_KEY);
   game = null;
   showSetup();
 }
@@ -911,6 +1041,7 @@ function initEvents() {
     if (button && !button.disabled) selectMultiplier(Number(button.dataset.multiplier));
   });
   elements.undoDartBtn.addEventListener('click', restoreUndo);
+  elements.continuePlacementBtn.addEventListener('click', continueAfterPlacement);
   elements.rematchBtn.addEventListener('click', rematch);
   elements.winnerSetupBtn.addEventListener('click', winnerBackToSetup);
   elements.themeToggle.addEventListener('click', toggleTheme);
@@ -937,6 +1068,9 @@ function init() {
     }));
     selectedMultiplier = 1;
     showGame();
+    if (game.pausedForPlacement && Number.isInteger(game.pendingPlacementIndex)) {
+      window.setTimeout(() => openPlacementDialog(game.pendingPlacementIndex, false, null), 0);
+    }
   }
 }
 

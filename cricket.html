@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
-  <link rel="stylesheet" href="cricket.css?v=13" />
+  <link rel="stylesheet" href="cricket.css?v=14" />
   <title>Darts Cricket</title>
 </head>
 <body>
@@ -111,17 +111,18 @@
 
   <dialog id="winnerDialog" class="winner-dialog">
     <div class="winner-content">
-      <div class="trophy-mark">WIN</div>
+      <div id="placementBadge" class="trophy-mark">PLATZ 1</div>
       <h2 id="winnerTitle">Gewonnen!</h2>
       <p id="winnerSummary"></p>
       <div id="finalScores" class="final-scores"></div>
       <div class="winner-actions">
-        <button id="rematchBtn" class="cta-button" type="button">Revanche</button>
+        <button id="continuePlacementBtn" class="cta-button continue-placement-button" type="button">Weiter spielen</button>
+        <button id="rematchBtn" class="outline-button" type="button">Revanche</button>
         <button id="winnerSetupBtn" class="outline-button" type="button">Teilnehmer</button>
       </div>
     </div>
   </dialog>
 
-  <script src="cricket.js?v=13"></script>
+  <script src="cricket.js?v=14"></script>
 </body>
 </html>
