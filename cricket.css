@@ -542,7 +542,20 @@ body.game-active main { height: 100%; min-height: 0; }
 
 @media (max-width: 520px) {
   .setup-columns { grid-template-columns: 1fr; }
-  .history-panel { display: none; }
+  .history-panel { display: block; }
+  .history-panel .section-heading {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .history-panel .quiet-button {
+    width: 100%;
+    min-height: 42px;
+    font-size: 0.82rem;
+  }
+  .history-panel .cricket-history {
+    max-height: 170px;
+    overflow-y: auto;
+  }
   .cricket-shell { padding-left: 10px; padding-right: 10px; }
   .topbar h1 { font-size: 1.42rem; }
   .mode-link { min-height: 44px; padding: 0 10px; font-size: 0.78rem; }
