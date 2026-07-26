@@ -1,4 +1,4 @@
-const CACHE_NAME = 'darts-trainer-cache-v17-mpr-stats';
+const CACHE_NAME = 'darts-trainer-cache-v18-history-clear';
 const ASSETS = [
   './',
   './index.html',
@@ -8,9 +8,9 @@ const ASSETS = [
   './app.js?v=13',
   './cricket.html',
   './cricket.css',
-  './cricket.css?v=17',
+  './cricket.css?v=18',
   './cricket.js',
-  './cricket.js?v=17',
+  './cricket.js?v=18',
   './manifest.json',
   './icon.svg'
 ];

@@ -1328,7 +1328,7 @@ function renderHistory() {
 }
 
 function clearHistory() {
-  if (!history.length || !window.confirm('Den gesamten Cricket-Verlauf löschen?')) return;
+  if (!history.length || !window.confirm('Wirklich die gesamte Cricket-History löschen? Spielerprofile und Around-the-Clock-Daten bleiben erhalten.')) return;
   history = [];
   saveJson(HISTORY_KEY, history);
   renderHistory();
