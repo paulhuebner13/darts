@@ -1,4 +1,4 @@
-const CACHE_NAME = 'darts-trainer-cache-v16-probability-bots';
+const CACHE_NAME = 'darts-trainer-cache-v17-mpr-stats';
 const ASSETS = [
   './',
   './index.html',
@@ -8,9 +8,9 @@ const ASSETS = [
   './app.js?v=13',
   './cricket.html',
   './cricket.css',
-  './cricket.css?v=15',
+  './cricket.css?v=17',
   './cricket.js',
-  './cricket.js?v=16',
+  './cricket.js?v=17',
   './manifest.json',
   './icon.svg'
 ];

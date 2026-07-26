@@ -40,29 +40,29 @@ const ACCIDENTAL_HIT_WEIGHTS = [
 
 const BOT_LEVELS = {
   rookie: {
-    label: 'Sehr leicht',
+    label: 'Anfänger',
     factor: 0.32,
     description: 'Sehr viele Fehlwürfe und nur selten kleine Felder.',
   },
   casual: {
-    label: 'Einfach',
+    label: 'Leicht',
     factor: 0.46,
-    description: 'Ein klarer Anfänger-Bot mit schwankenden Singles.',
+    description: 'Ein Anfänger-Bot mit schwankenden Singles.',
   },
   normal: {
-    label: 'Leicht',
+    label: 'Mittel',
     factor: 0.62,
-    description: 'Die mittlere leichte Stufe. Spielt sinnvoll, trifft aber deutlich ungenauer.',
+    description: 'Mittlere Stufe mit sinnvoller Taktik und klaren Fehlwürfen.',
   },
   strong: {
-    label: 'Mittel',
+    label: 'Schwer',
     factor: 0.80,
     description: 'Solider Freizeitspieler mit vernünftiger Cricket-Taktik.',
   },
   expert: {
-    label: 'Schwer',
+    label: 'Profi',
     factor: 1.00,
-    description: 'Der stärkste Bot, weiterhin klar schwächer als die bisherige Expertenstufe.',
+    description: 'Der stärkste Bot mit der höchsten Zielgenauigkeit.',
   },
 };
 
@@ -76,6 +76,8 @@ const elements = {
   createPlayerForm: document.getElementById('createPlayerForm'),
   playerNameInput: document.getElementById('playerNameInput'),
   savedPlayers: document.getElementById('savedPlayers'),
+  statsPlayerSelect: document.getElementById('statsPlayerSelect'),
+  playerStats: document.getElementById('playerStats'),
   botDifficulty: document.getElementById('botDifficulty'),
   addBotBtn: document.getElementById('addBotBtn'),
   cricketHistory: document.getElementById('cricketHistory'),
@@ -182,7 +184,9 @@ function sanitizeProfiles(raw) {
 
 function sanitizeHistory(raw) {
   if (!Array.isArray(raw)) return [];
-  return raw.filter((entry) => entry && Array.isArray(entry.players) && entry.winnerName).slice(-20);
+  return raw
+    .filter((entry) => entry && Array.isArray(entry.players) && entry.winnerName)
+    .slice(-500);
 }
 
 profiles = sanitizeProfiles(profiles);
@@ -200,14 +204,28 @@ function participantFromProfile(profile) {
 }
 
 function createBot(levelKey) {
-  const level = BOT_LEVELS[levelKey] || BOT_LEVELS.normal;
-  const sameLevelCount = lineup.filter((participant) => participant.type === 'bot' && participant.levelKey === levelKey).length;
+  const safeLevelKey = BOT_LEVELS[levelKey] ? levelKey : 'normal';
+  const level = BOT_LEVELS[safeLevelKey];
+  const sameLevelCount = lineup.filter((participant) => participant.type === 'bot' && participant.levelKey === safeLevelKey).length;
   return {
     instanceId: uid('bot'),
     type: 'bot',
     name: `Bot ${level.label}${sameLevelCount ? ` ${sameLevelCount + 1}` : ''}`,
-    levelKey,
+    levelKey: safeLevelKey,
   };
+}
+
+function normalizeLoadedBotNames(players) {
+  const counts = new Map();
+  players.forEach((player) => {
+    if (player.type !== 'bot') return;
+    const levelKey = BOT_LEVELS[player.levelKey] ? player.levelKey : 'normal';
+    player.levelKey = levelKey;
+    const count = (counts.get(levelKey) || 0) + 1;
+    counts.set(levelKey, count);
+    const label = BOT_LEVELS[levelKey].label;
+    player.name = `Bot ${label}${count > 1 ? ` ${count}` : ''}`;
+  });
 }
 
 function isProfileSelected(profileId) {
@@ -226,9 +244,102 @@ function canAddParticipant() {
   return true;
 }
 
+function formatNumber(value, digits = 2) {
+  return new Intl.NumberFormat('de-AT', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(Number(value) || 0);
+}
+
+function calculateMpr(player) {
+  const dartsThrown = Math.max(0, Number(player?.dartsThrown) || 0);
+  const totalMarks = Math.max(0, Number(player?.totalMarks) || 0);
+  return dartsThrown > 0 ? (totalMarks / dartsThrown) * 3 : 0;
+}
+
+function findHistoryPlayer(entry, profile) {
+  return entry.players.find((player) => (
+    player.type === 'human'
+    && ((player.profileId && player.profileId === profile.id)
+      || (!player.profileId && String(player.name).toLocaleLowerCase('de') === profile.name.toLocaleLowerCase('de')))
+  ));
+}
+
+function renderSelectedPlayerStats() {
+  if (!profiles.length) {
+    elements.statsPlayerSelect.innerHTML = '';
+    elements.statsPlayerSelect.disabled = true;
+    elements.playerStats.className = 'player-stats empty-copy';
+    elements.playerStats.textContent = 'Noch keine menschlichen Spieler gespeichert.';
+    return;
+  }
+
+  elements.statsPlayerSelect.disabled = false;
+  const profile = profiles.find((entry) => entry.id === elements.statsPlayerSelect.value) || profiles[0];
+  if (!profile) return;
+  elements.statsPlayerSelect.value = profile.id;
+
+  const games = history.map((entry) => ({
+    entry,
+    player: findHistoryPlayer(entry, profile),
+  })).filter(({ player }) => player);
+
+  if (!games.length) {
+    elements.playerStats.className = 'player-stats empty-copy';
+    elements.playerStats.textContent = `Für ${profile.name} gibt es noch kein abgeschlossenes Spiel.`;
+    return;
+  }
+
+  const wins = games.filter(({ player }) => Number(player.placement) === 1).length;
+  const placements = games.map(({ player }) => Number(player.placement)).filter((value) => Number.isFinite(value) && value > 0);
+  const averagePlacement = placements.length
+    ? placements.reduce((sum, value) => sum + value, 0) / placements.length
+    : 0;
+  const gamesWithMpr = games.filter(({ player }) => Number(player.dartsThrown) > 0);
+  const totalMarks = gamesWithMpr.reduce((sum, { player }) => sum + (Number(player.totalMarks) || 0), 0);
+  const totalDarts = gamesWithMpr.reduce((sum, { player }) => sum + (Number(player.dartsThrown) || 0), 0);
+  const overallMpr = totalDarts > 0 ? (totalMarks / totalDarts) * 3 : null;
+  const bestMpr = gamesWithMpr.length
+    ? Math.max(...gamesWithMpr.map(({ player }) => Number(player.mpr) || calculateMpr(player)))
+    : null;
+
+  const recentRows = [...games].reverse().slice(0, 5).map(({ entry, player }) => {
+    const date = new Intl.DateTimeFormat('de-AT', { dateStyle: 'short' }).format(new Date(entry.finishedAt));
+    const mpr = Number(player.dartsThrown) > 0 ? formatNumber(Number(player.mpr) || calculateMpr(player)) : '–';
+    return `<div class="player-stat-game"><span>${escapeHtml(date)}</span><strong>${Number(player.placement) || '–'}. Platz</strong><span>MPR ${mpr}</span></div>`;
+  }).join('');
+
+  elements.playerStats.className = 'player-stats';
+  elements.playerStats.innerHTML = `
+    <div class="player-stat-grid">
+      <div class="player-stat-tile"><span>Spiele</span><strong>${games.length}</strong></div>
+      <div class="player-stat-tile"><span>Siege</span><strong>${wins}</strong></div>
+      <div class="player-stat-tile"><span>Siegquote</span><strong>${formatNumber((wins / games.length) * 100, 0)} %</strong></div>
+      <div class="player-stat-tile"><span>Ø Platz</span><strong>${placements.length ? formatNumber(averagePlacement) : '–'}</strong></div>
+      <div class="player-stat-tile"><span>MPR gesamt</span><strong>${overallMpr === null ? '–' : formatNumber(overallMpr)}</strong></div>
+      <div class="player-stat-tile"><span>Beste MPR</span><strong>${bestMpr === null ? '–' : formatNumber(bestMpr)}</strong></div>
+    </div>
+    <div class="player-stat-games">${recentRows}</div>
+  `;
+}
+
+function renderStatsPlayerOptions() {
+  const previous = elements.statsPlayerSelect.value;
+  if (!profiles.length) {
+    renderSelectedPlayerStats();
+    return;
+  }
+  elements.statsPlayerSelect.innerHTML = profiles.map((profile) => (
+    `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)}</option>`
+  )).join('');
+  elements.statsPlayerSelect.value = profiles.some((profile) => profile.id === previous) ? previous : profiles[0].id;
+  renderSelectedPlayerStats();
+}
+
 function renderProfiles() {
   if (!profiles.length) {
     elements.savedPlayers.innerHTML = '<div class="empty-copy">Noch keine gespeicherten Spieler.</div>';
+    renderStatsPlayerOptions();
     return;
   }
 
@@ -239,6 +350,7 @@ function renderProfiles() {
       <button class="delete-profile" type="button" data-delete-profile="${escapeHtml(profile.id)}" aria-label="${escapeHtml(profile.name)} löschen">×</button>
     </div>
   `).join('');
+  renderStatsPlayerOptions();
 }
 
 function renderLineup() {
@@ -252,7 +364,7 @@ function renderLineup() {
     elements.selectedLineup.className = 'selected-lineup';
     elements.selectedLineup.innerHTML = lineup.map((participant, index) => {
       const meta = participant.type === 'bot'
-        ? `Bot · ${BOT_LEVELS[participant.levelKey]?.label || 'Leicht'}`
+        ? `Bot · ${BOT_LEVELS[participant.levelKey]?.label || 'Mittel'}`
         : 'Mensch';
       return `
         <div class="lineup-card" data-seat-id="${escapeHtml(participant.instanceId)}">
@@ -333,6 +445,8 @@ function buildGamePlayers(participants) {
     ...deepClone(participant),
     score: 0,
     marks: emptyMarks(),
+    totalMarks: 0,
+    dartsThrown: 0,
     lastThrows: [],
     botFocusTarget: null,
   }));
@@ -394,9 +508,12 @@ function loadActiveGame() {
   raw.players.forEach((player) => {
     const placement = Number(player.placement);
     player.placement = Number.isInteger(placement) && placement > 0 ? placement : null;
+    player.totalMarks = Math.max(0, Number(player.totalMarks) || 0);
+    player.dartsThrown = Math.max(0, Number(player.dartsThrown) || 0);
     player.lastThrows = Array.isArray(player.lastThrows) ? player.lastThrows.slice(-3) : [];
     player.botFocusTarget = CRICKET_TARGETS.includes(player.botFocusTarget) ? player.botFocusTarget : null;
   });
+  normalizeLoadedBotNames(raw.players);
   raw.placements = Array.isArray(raw.placements) ? raw.placements : [];
   raw.pausedForPlacement = Boolean(raw.pausedForPlacement);
   raw.pendingPlacementIndex = Number.isInteger(raw.pendingPlacementIndex) ? raw.pendingPlacementIndex : null;
@@ -534,6 +651,12 @@ function dartLabel(dart) {
   return `${prefix}${dart.target}`;
 }
 
+function rawMarksForDart(dart) {
+  if (!dart || !CRICKET_TARGETS.includes(dart.target)) return 0;
+  const maximum = dart.target === 'Bull' ? 2 : 3;
+  return Math.max(0, Math.min(maximum, Number(dart.multiplier) || 0));
+}
+
 function applyDartToPlayer(playerIndex, dart) {
   const player = game.players[playerIndex];
   const target = CRICKET_TARGETS.includes(dart.target) ? dart.target : null;
@@ -569,10 +692,14 @@ function recordDart(dart, source = 'human') {
   const playerIndex = game.currentPlayerIndex;
   pushUndo({ source, playerIndex });
   const player = game.players[playerIndex];
+  const rawMarks = rawMarksForDart(dart);
+  player.totalMarks = Math.max(0, Number(player.totalMarks) || 0) + rawMarks;
+  player.dartsThrown = Math.max(0, Number(player.dartsThrown) || 0) + 1;
   const result = applyDartToPlayer(playerIndex, dart);
   const recordedDart = {
     ...dart,
     label: dartLabel(dart),
+    rawMarks,
     marksAdded: result.marksAdded,
     pointsAdded: result.pointsAdded,
   };
@@ -661,11 +788,13 @@ function renderScoreboard() {
     const rank = placed ? `<span class="head-rank">${Number(player.placement)}.</span>` : '';
     const recentThrows = Array.isArray(player.lastThrows) ? player.lastThrows.slice(-3) : [];
     const paddedThrows = [...Array(Math.max(0, 3 - recentThrows.length)).fill(''), ...recentThrows];
+    const mpr = formatNumber(calculateMpr(player));
     const lastThrowsMarkup = paddedThrows.map((label) => `<span class="last-dart-chip ${label ? '' : 'empty'}">${label ? escapeHtml(label) : ''}</span>`).join('');
     return `
       <th class="player-head ${index === game.currentPlayerIndex && !game.pausedForPlacement ? 'active-player' : ''} ${placed ? 'placed-player' : ''}" data-player-index="${index}">
         ${rank}
         <span class="head-name">${escapeHtml(player.name)}</span>
+        <span class="head-mpr">MPR ${mpr}</span>
         <span class="head-score">${player.score}</span>
         <span class="head-last-darts" aria-label="Letzte drei Würfe von ${escapeHtml(player.name)}">${lastThrowsMarkup}</span>
       </th>
@@ -1075,14 +1204,18 @@ function saveCompletedRanking() {
     rounds: game.round,
     winnerName: winner.name,
     players: sortedRankingPlayers().map((player) => ({
+      profileId: player.profileId || null,
       name: player.name,
       type: player.type,
       score: player.score,
       placement: player.placement,
+      totalMarks: Math.max(0, Number(player.totalMarks) || 0),
+      dartsThrown: Math.max(0, Number(player.dartsThrown) || 0),
+      mpr: calculateMpr(player),
     })),
   };
   history.push(record);
-  history = history.slice(-20);
+  history = history.slice(-500);
   saveJson(HISTORY_KEY, history);
   localStorage.removeItem(ACTIVE_GAME_KEY);
   renderHistory();
@@ -1199,6 +1332,7 @@ function clearHistory() {
   history = [];
   saveJson(HISTORY_KEY, history);
   renderHistory();
+  renderSelectedPlayerStats();
 }
 
 function refreshLineupOrderFromDom() {
@@ -1272,6 +1406,7 @@ function initEvents() {
   elements.selectedLineup.addEventListener('pointerup', endLineupDrag);
   elements.selectedLineup.addEventListener('pointercancel', endLineupDrag);
   elements.addBotBtn.addEventListener('click', addBot);
+  elements.statsPlayerSelect.addEventListener('change', renderSelectedPlayerStats);
   elements.startGameBtn.addEventListener('click', startGameFromLineup);
   elements.clearHistoryBtn.addEventListener('click', clearHistory);
   elements.backToSetupBtn.addEventListener('click', leaveGameForSetup);

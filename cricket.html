@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
-  <link rel="stylesheet" href="cricket.css?v=15" />
+  <link rel="stylesheet" href="cricket.css?v=17" />
   <title>Darts Cricket</title>
 </head>
 <body>
@@ -56,16 +56,25 @@
             <div class="bot-add-row">
               <label class="sr-only" for="botDifficulty">Schwierigkeit</label>
               <select id="botDifficulty">
-                <option value="rookie">Sehr leicht</option>
-                <option value="casual">Einfach</option>
-                <option value="normal" selected>Leicht</option>
-                <option value="strong">Mittel</option>
-                <option value="expert">Schwer</option>
+                <option value="rookie">Anfänger</option>
+                <option value="casual">Leicht</option>
+                <option value="normal" selected>Mittel</option>
+                <option value="strong">Schwer</option>
+                <option value="expert">Profi</option>
               </select>
               <button id="addBotBtn" class="small-primary bot-add-button" type="button">+</button>
             </div>
           </article>
         </div>
+
+        <article class="setup-card player-stats-panel">
+          <div class="section-heading stats-heading">
+            <h2>Spielerstatistik</h2>
+            <label class="sr-only" for="statsPlayerSelect">Spieler auswählen</label>
+            <select id="statsPlayerSelect" class="stats-player-select"></select>
+          </div>
+          <div id="playerStats" class="player-stats empty-copy">Noch keine menschlichen Spieler gespeichert.</div>
+        </article>
 
         <article id="historyPanel" class="setup-card history-panel">
           <div class="section-heading">
@@ -123,6 +132,6 @@
     </div>
   </dialog>
 
-  <script src="cricket.js?v=16"></script>
+  <script src="cricket.js?v=17"></script>
 </body>
 </html>

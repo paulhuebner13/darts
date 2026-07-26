@@ -678,3 +678,105 @@ button,
   .head-last-darts { margin-top: 3px; }
   .last-dart-chip { height: 12px; min-width: 15px; font-size: .43rem; }
 }
+
+/* v17: MPR-Anzeige und auswählbare Spielerstatistik */
+.stats-heading {
+  align-items: center;
+}
+
+.stats-player-select {
+  width: min(52%, 220px);
+  min-height: 36px;
+  padding: 0 8px;
+  font-size: .82rem;
+}
+
+.player-stats {
+  display: grid;
+  gap: 10px;
+}
+
+.player-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.player-stat-tile {
+  min-width: 0;
+  padding: 9px 7px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--card-2);
+  text-align: center;
+}
+
+.player-stat-tile span {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: .66rem;
+  line-height: 1.1;
+}
+
+.player-stat-tile strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.player-stat-games {
+  display: grid;
+  gap: 5px;
+}
+
+.player-stat-game {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 9px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: .72rem;
+}
+
+.player-stat-game strong {
+  color: var(--text);
+}
+
+.scoreboard .head-mpr {
+  display: block;
+  margin-top: 3px;
+  color: var(--primary);
+  font-size: clamp(.5rem, 1.35dvh, .64rem);
+  font-weight: 850;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.scoreboard thead th {
+  height: clamp(66px, 9.6dvh, 84px);
+}
+
+@media (max-width: 420px) {
+  .player-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stats-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .stats-player-select {
+    width: 100%;
+  }
+}
+
+@media (max-height: 700px) {
+  .scoreboard thead th { height: 62px; }
+  .scoreboard .head-mpr { margin-top: 2px; font-size: .47rem; }
+}
