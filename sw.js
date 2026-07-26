@@ -1,4 +1,4 @@
-const CACHE_NAME = 'darts-trainer-cache-v14-ranking';
+const CACHE_NAME = 'darts-trainer-cache-v15-better-bots';
 const ASSETS = [
   './',
   './index.html',
@@ -8,9 +8,9 @@ const ASSETS = [
   './app.js?v=13',
   './cricket.html',
   './cricket.css',
-  './cricket.css?v=14',
+  './cricket.css?v=15',
   './cricket.js',
-  './cricket.js?v=14',
+  './cricket.js?v=15',
   './manifest.json',
   './icon.svg'
 ];

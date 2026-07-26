@@ -2,13 +2,13 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#111827" />
   <meta name="description" content="Darts Cricket für menschliche Spieler und Bots." />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
-  <link rel="stylesheet" href="cricket.css?v=14" />
+  <link rel="stylesheet" href="cricket.css?v=15" />
   <title>Darts Cricket</title>
 </head>
 <body>
@@ -56,11 +56,11 @@
             <div class="bot-add-row">
               <label class="sr-only" for="botDifficulty">Schwierigkeit</label>
               <select id="botDifficulty">
-                <option value="rookie">Anfänger</option>
-                <option value="casual">Locker</option>
-                <option value="normal" selected>Normal</option>
-                <option value="strong">Stark</option>
-                <option value="expert">Experte</option>
+                <option value="rookie">Sehr leicht</option>
+                <option value="casual">Einfach</option>
+                <option value="normal" selected>Leicht</option>
+                <option value="strong">Mittel</option>
+                <option value="expert">Schwer</option>
               </select>
               <button id="addBotBtn" class="small-primary bot-add-button" type="button">+</button>
             </div>
@@ -123,6 +123,6 @@
     </div>
   </dialog>
 
-  <script src="cricket.js?v=14"></script>
+  <script src="cricket.js?v=15"></script>
 </body>
 </html>
