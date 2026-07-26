@@ -3,6 +3,7 @@
 const PROFILE_KEY = 'darts-cricket-profiles-v1';
 const ACTIVE_GAME_KEY = 'darts-cricket-active-v1';
 const HISTORY_KEY = 'darts-cricket-history-v1';
+const THEME_KEY = 'darts-trainer-theme';
 const MAX_PLAYERS = 6;
 const CRICKET_TARGETS = ['20', '19', '18', '17', '16', '15', 'Bull'];
 const TARGET_VALUES = { '20': 20, '19': 19, '18': 18, '17': 17, '16': 16, '15': 15, Bull: 25 };
@@ -78,6 +79,8 @@ const elements = {
   finalScores: document.getElementById('finalScores'),
   rematchBtn: document.getElementById('rematchBtn'),
   winnerSetupBtn: document.getElementById('winnerSetupBtn'),
+  themeToggle: document.getElementById('themeToggle'),
+  gameThemeToggle: document.getElementById('gameThemeToggle'),
 };
 
 let profiles = loadJson(PROFILE_KEY, []);
@@ -87,6 +90,23 @@ let game = null;
 let selectedMultiplier = 1;
 let botBusy = false;
 let botStartTimer = null;
+
+
+function loadTheme() {
+  return localStorage.getItem(THEME_KEY) || 'light';
+}
+
+function applyTheme(theme) {
+  const isDark = theme === 'dark';
+  document.body.classList.toggle('dark', isDark);
+  localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeMeta) themeMeta.setAttribute('content', isDark ? '#0f172a' : '#f3f4f6');
+}
+
+function toggleTheme() {
+  applyTheme(document.body.classList.contains('dark') ? 'light' : 'dark');
+}
 
 function uid(prefix = 'id') {
   if (globalThis.crypto?.randomUUID) return `${prefix}-${globalThis.crypto.randomUUID()}`;
@@ -506,7 +526,7 @@ function renderTargetButtons() {
     const closed = Number(player.marks[target]) >= 3;
     return `<button class="target-button ${closed ? 'closed-target' : ''}" data-target="${escapeHtml(target)}" type="button">${escapeHtml(target)}</button>`;
   });
-  numberButtons.push('<button class="target-button miss-target-button" data-target="Miss" type="button">Nicht getroffen</button>');
+  numberButtons.push('<button class="target-button miss-target-button" data-target="Miss" type="button">Miss</button>');
   elements.targetButtons.innerHTML = numberButtons.join('');
 }
 
@@ -893,9 +913,12 @@ function initEvents() {
   elements.undoDartBtn.addEventListener('click', restoreUndo);
   elements.rematchBtn.addEventListener('click', rematch);
   elements.winnerSetupBtn.addEventListener('click', winnerBackToSetup);
+  elements.themeToggle.addEventListener('click', toggleTheme);
+  elements.gameThemeToggle.addEventListener('click', toggleTheme);
 }
 
 function init() {
+  applyTheme(loadTheme());
   initEvents();
   renderProfiles();
   renderLineup();

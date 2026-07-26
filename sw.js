@@ -1,14 +1,16 @@
-const CACHE_NAME = 'darts-trainer-cache-v12-cricket-layout';
+const CACHE_NAME = 'darts-trainer-cache-v13-compact-themes';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
+  './styles.css?v=13',
   './app.js',
+  './app.js?v=13',
   './cricket.html',
   './cricket.css',
-  './cricket.css?v=12',
+  './cricket.css?v=13',
   './cricket.js',
-  './cricket.js?v=12',
+  './cricket.js?v=13',
   './manifest.json',
   './icon.svg'
 ];
@@ -29,7 +31,6 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-
   event.respondWith(
     fetch(event.request)
       .then((response) => {
@@ -42,12 +43,10 @@ self.addEventListener('fetch', (event) => {
       .catch(async () => {
         const cached = await caches.match(event.request);
         if (cached) return cached;
-
         if (event.request.mode === 'navigate') {
           const url = new URL(event.request.url);
           return caches.match(url.pathname.endsWith('/cricket.html') ? './cricket.html' : './index.html');
         }
-
         return Response.error();
       })
   );

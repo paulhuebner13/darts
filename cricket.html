@@ -3,22 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#07140f" />
+  <meta name="theme-color" content="#111827" />
   <meta name="description" content="Darts Cricket für menschliche Spieler und Bots." />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
-  <link rel="stylesheet" href="cricket.css?v=12" />
+  <link rel="stylesheet" href="cricket.css?v=13" />
   <title>Darts Cricket</title>
 </head>
 <body>
   <div class="cricket-shell">
-    <header class="cricket-header">
+    <header class="topbar">
       <div>
-        <div class="eyebrow">DARTS</div>
-        <h1>Cricket</h1>
+        <h1>Darts Trainer</h1>
+        <p>Cricket</p>
       </div>
-      <a class="trainer-link" href="index.html">Trainer</a>
+      <div class="topbar-actions">
+        <a class="mode-link" href="index.html">Around the Clock</a>
+        <button id="themeToggle" class="icon-button" type="button" aria-label="Hell-/Dunkelmodus umschalten">◐</button>
+      </div>
     </header>
 
     <main>
@@ -79,6 +82,7 @@
           <div id="turnDots" class="turn-dots" aria-label="Würfe in dieser Aufnahme">
             <span></span><span></span><span></span>
           </div>
+          <button id="gameThemeToggle" class="toolbar-button" type="button" aria-label="Hell-/Dunkelmodus umschalten">◐</button>
           <button id="undoDartBtn" class="toolbar-button" type="button" aria-label="Letzten Wurf zurück">↶</button>
           <button id="resetGameBtn" class="toolbar-button danger-toolbar-button" type="button" aria-label="Spiel neu starten">↻</button>
         </div>
@@ -118,6 +122,6 @@
     </div>
   </dialog>
 
-  <script src="cricket.js?v=12"></script>
+  <script src="cricket.js?v=13"></script>
 </body>
 </html>

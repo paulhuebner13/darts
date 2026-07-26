@@ -114,8 +114,11 @@ function loadTheme() {
 }
 
 function applyTheme(theme) {
-  document.body.classList.toggle('dark', theme === 'dark');
-  localStorage.setItem(THEME_KEY, theme);
+  const isDark = theme === 'dark';
+  document.body.classList.toggle('dark', isDark);
+  localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeMeta) themeMeta.setAttribute('content', isDark ? '#0f172a' : '#f3f4f6');
 }
 
 function switchTab(tabId) {
