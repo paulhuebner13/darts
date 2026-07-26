@@ -10,17 +10,33 @@ const INPUT_TARGETS = ['15', '16', '17', '18', '19', '20', 'Bull'];
 const TARGET_VALUES = { '20': 20, '19': 19, '18': 18, '17': 17, '16': 16, '15': 15, Bull: 25 };
 const BOARD_ORDER = ['20', '1', '18', '4', '13', '6', '10', '15', '2', '17', '3', '19', '7', '16', '8', '11', '14', '9', '12', '5'];
 
-// Jeder Feldtyp besitzt eine feste Basisgenauigkeit. Die Schwierigkeit multipliziert
-// diese Werte linear. So trifft ein Bot mit Faktor 1,4 dasselbe kleine Feld ungefähr
-// 40 % häufiger als ein Bot mit Faktor 1,0, solange der Sicherheitsdeckel nicht greift.
-const BASE_ACCURACY = {
-  numericSingle: 0.56,
-  numericWedge: 0.72,
-  numericDouble: 0.10,
-  numericTriple: 0.075,
-  anyBull: 0.50,
-  innerBull: 0.12,
+// Die taktische Entscheidung ist bei allen Bots gleich. Nur die Genauigkeit des
+// tatsächlich anvisierten Feldes wird mit der Bot-Stufe skaliert.
+const BOT_STRATEGY = {
+  pointsChance: 0.22,
+  newFieldChance: 0.28,
+  accidentalHitAfterMissChance: 0.20,
 };
+
+const BASE_ACCURACY = {
+  numericSingle: 0.58,
+  numericWedge: 0.72,
+  numericDouble: 0.15,
+  numericTriple: 0.10,
+  anyBull: 0.32,
+  innerBull: 0.06,
+};
+
+// Verteilung eines zufälligen Nebentreffers, nachdem das eigentliche Ziel verfehlt
+// wurde. Singles sind wegen ihrer Fläche sehr häufig; Double, Triple und vor allem
+// das Doppel-Bull sind deutlich unwahrscheinlicher.
+const ACCIDENTAL_HIT_WEIGHTS = [
+  { value: 'numericSingle', weight: 86.5 },
+  { value: 'numericDouble', weight: 5.5 },
+  { value: 'numericTriple', weight: 4.0 },
+  { value: 'outerBull', weight: 3.5 },
+  { value: 'innerBull', weight: 0.5 },
+];
 
 const BOT_LEVELS = {
   rookie: {
@@ -746,25 +762,55 @@ function weightedChoice(items) {
   return items[items.length - 1].value;
 }
 
+function randomAccidentalDart(aimedAt, aimedMultiplier) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const fieldType = weightedChoice(ACCIDENTAL_HIT_WEIGHTS);
+    let dart;
+
+    if (fieldType === 'outerBull') {
+      dart = { target: 'Bull', multiplier: 1 };
+    } else if (fieldType === 'innerBull') {
+      dart = { target: 'Bull', multiplier: 2 };
+    } else {
+      const target = String(Math.floor(Math.random() * 20) + 1);
+      const multiplier = fieldType === 'numericTriple' ? 3 : fieldType === 'numericDouble' ? 2 : 1;
+      dart = { target, multiplier };
+    }
+
+    // Ein Nebentreffer soll nicht zufällig exakt wieder das anvisierte Feld sein.
+    if (dart.target !== aimedAt || dart.multiplier !== aimedMultiplier) {
+      return { ...dart, aimedAt, aimedMultiplier, accidental: true };
+    }
+  }
+
+  return { target: null, multiplier: 0, aimedAt, aimedMultiplier };
+}
+
+function missOrAccidentalHit(aimedAt, aimedMultiplier) {
+  if (chance(BOT_STRATEGY.accidentalHitAfterMissChance)) {
+    return randomAccidentalDart(aimedAt, aimedMultiplier);
+  }
+  return { target: null, multiplier: 0, aimedAt, aimedMultiplier };
+}
+
 function resolveNumericBotDart(target, aimMultiplier, factor) {
   const exactBase = aimMultiplier === 3
     ? BASE_ACCURACY.numericTriple
     : aimMultiplier === 2
       ? BASE_ACCURACY.numericDouble
       : BASE_ACCURACY.numericSingle;
-  const exactCap = aimMultiplier === 3 ? 0.42 : aimMultiplier === 2 ? 0.52 : 0.90;
-  const exactProbability = clamp(exactBase * factor, 0.01, exactCap);
-  const wedgeProbability = clamp(BASE_ACCURACY.numericWedge * factor, exactProbability, 0.96);
+  const exactCap = aimMultiplier === 3 ? 0.36 : aimMultiplier === 2 ? 0.44 : 0.88;
+  const exactProbability = clamp(exactBase * factor, 0.005, exactCap);
+  const wedgeProbability = clamp(BASE_ACCURACY.numericWedge * factor, exactProbability, 0.94);
   const roll = Math.random();
 
-  // Das tatsächlich anvisierte Feld wird exakt mit Basiswahrscheinlichkeit × Bot-Faktor getroffen.
   if (roll < exactProbability) {
     return { target, multiplier: aimMultiplier, aimedAt: target, aimedMultiplier: aimMultiplier };
   }
 
-  // Der Dart landet noch in derselben Zahl, aber in einem anderen Ring.
+  // Noch dieselbe Zahl, aber nicht der gewünschte Ring.
   if (roll < wedgeProbability) {
-    let fallbackMultiplier = 1;
+    let fallbackMultiplier;
     if (aimMultiplier === 1) {
       fallbackMultiplier = weightedChoice([
         { value: 2, weight: 0.58 },
@@ -772,46 +818,42 @@ function resolveNumericBotDart(target, aimMultiplier, factor) {
       ]);
     } else if (aimMultiplier === 2) {
       fallbackMultiplier = weightedChoice([
-        { value: 1, weight: 0.92 },
-        { value: 3, weight: 0.08 },
+        { value: 1, weight: 0.94 },
+        { value: 3, weight: 0.06 },
       ]);
     } else {
       fallbackMultiplier = weightedChoice([
-        { value: 1, weight: 0.91 },
-        { value: 2, weight: 0.09 },
+        { value: 1, weight: 0.94 },
+        { value: 2, weight: 0.06 },
       ]);
     }
     return { target, multiplier: fallbackMultiplier, aimedAt: target, aimedMultiplier: aimMultiplier };
   }
 
-  if (chance(0.70)) {
-    const adjacent = adjacentBoardTarget(target);
-    const multiplier = chance(0.035 * factor) ? 3 : chance(0.05 * factor) ? 2 : 1;
-    return { target: adjacent, multiplier, aimedAt: target, aimedMultiplier: aimMultiplier };
-  }
-
-  return { target: null, multiplier: 0, aimedAt: target, aimedMultiplier: aimMultiplier };
+  return missOrAccidentalHit(target, aimMultiplier);
 }
 
 function resolveBullBotDart(aimMultiplier, factor) {
-  const anyBullProbability = clamp(BASE_ACCURACY.anyBull * factor, 0.10, 0.80);
-  const innerProbability = clamp(BASE_ACCURACY.innerBull * factor * (aimMultiplier === 2 ? 1.18 : 0.58), 0.025, 0.44);
+  const anyBullProbability = clamp(BASE_ACCURACY.anyBull * factor, 0.025, 0.68);
+  const innerProbability = clamp(
+    BASE_ACCURACY.innerBull * factor * (aimMultiplier === 2 ? 1 : 0.28),
+    0.002,
+    0.26,
+  );
 
   const roll = Math.random();
-  if (roll < innerProbability) return { target: 'Bull', multiplier: 2, aimedAt: 'Bull', aimedMultiplier: aimMultiplier };
-  if (roll < anyBullProbability) return { target: 'Bull', multiplier: 1, aimedAt: 'Bull', aimedMultiplier: aimMultiplier };
-
-  if (chance(0.58)) {
-    const numericTarget = String(Math.floor(Math.random() * 20) + 1);
-    const multiplier = chance(0.03 * factor) ? 3 : chance(0.045 * factor) ? 2 : 1;
-    return { target: numericTarget, multiplier, aimedAt: 'Bull', aimedMultiplier: aimMultiplier };
+  if (roll < innerProbability) {
+    return { target: 'Bull', multiplier: 2, aimedAt: 'Bull', aimedMultiplier: aimMultiplier };
+  }
+  if (roll < anyBullProbability) {
+    return { target: 'Bull', multiplier: 1, aimedAt: 'Bull', aimedMultiplier: aimMultiplier };
   }
 
-  return { target: null, multiplier: 0, aimedAt: 'Bull', aimedMultiplier: aimMultiplier };
+  return missOrAccidentalHit('Bull', aimMultiplier);
 }
 
 function resolveBotDart(target, aimMultiplier, levelKey) {
-  const factor = BOT_LEVELS[levelKey]?.factor || 1;
+  const factor = BOT_LEVELS[levelKey]?.factor || BOT_LEVELS.normal.factor;
   return target === 'Bull'
     ? resolveBullBotDart(aimMultiplier, factor)
     : resolveNumericBotDart(target, aimMultiplier, factor);
@@ -825,69 +867,130 @@ function openOpponentCount(playerIndex, target) {
   return activeOpponentsFor(playerIndex).filter((opponent) => Number(opponent.marks[target]) < 3).length;
 }
 
-function bestScoringTarget(playerIndex) {
-  const player = game.players[playerIndex];
-  const candidates = CRICKET_TARGETS
-    .filter((target) => Number(player.marks[target]) >= 3 && openOpponentCount(playerIndex, target) > 0)
-    .sort((a, b) => TARGET_VALUES[b] - TARGET_VALUES[a]);
-  return candidates[0] || null;
+function chooseWeightedTarget(targets, weightForTarget) {
+  if (!targets.length) return null;
+  return weightedChoice(targets.map((target) => ({
+    value: target,
+    weight: Math.max(0.01, weightForTarget(target)),
+  })));
 }
 
-function bestClosingTarget(playerIndex) {
+function scoringTargets(playerIndex) {
   const player = game.players[playerIndex];
-  const focused = player.botFocusTarget;
-  if (focused && Number(player.marks[focused]) > 0 && Number(player.marks[focused]) < 3) return focused;
+  return CRICKET_TARGETS.filter((target) => (
+    Number(player.marks[target]) >= 3
+    && openOpponentCount(playerIndex, target) > 0
+  ));
+}
 
-  const started = CRICKET_TARGETS
-    .filter((target) => Number(player.marks[target]) > 0 && Number(player.marks[target]) < 3)
-    .sort((a, b) => {
-      const markDifference = Number(player.marks[b]) - Number(player.marks[a]);
-      if (markDifference !== 0) return markDifference;
-      return TARGET_VALUES[b] - TARGET_VALUES[a];
-    });
-  if (started.length) return started[0];
+function startedTargets(playerIndex) {
+  const player = game.players[playerIndex];
+  return CRICKET_TARGETS.filter((target) => {
+    const marks = Number(player.marks[target]) || 0;
+    return marks > 0 && marks < 3;
+  });
+}
 
-  const unopened = CRICKET_TARGETS
-    .filter((target) => Number(player.marks[target]) < 3)
-    .sort((a, b) => TARGET_VALUES[b] - TARGET_VALUES[a]);
-  return unopened[0] || null;
+function newTargets(playerIndex) {
+  const player = game.players[playerIndex];
+  return CRICKET_TARGETS.filter((target) => Number(player.marks[target]) === 0);
+}
+
+function chooseScoringTarget(playerIndex, targets) {
+  return chooseWeightedTarget(targets, (target) => (
+    TARGET_VALUES[target]
+    * (1 + openOpponentCount(playerIndex, target) * 0.16)
+  ));
+}
+
+function chooseStartedTarget(playerIndex, targets) {
+  const player = game.players[playerIndex];
+  return chooseWeightedTarget(targets, (target) => {
+    const marks = Number(player.marks[target]) || 0;
+    return (marks === 2 ? 8 : 3.5) + TARGET_VALUES[target] / 20;
+  });
+}
+
+function chooseNewTarget(targets) {
+  return chooseWeightedTarget(targets, (target) => 2 + TARGET_VALUES[target] / 16);
+}
+
+function chooseAimMultiplier(playerIndex, target, mode) {
+  const player = game.players[playerIndex];
+  const marks = Number(player.marks[target]) || 0;
+
+  if (target === 'Bull') {
+    if (mode === 'points') {
+      return weightedChoice([
+        { value: 1, weight: 0.72 },
+        { value: 2, weight: 0.28 },
+      ]);
+    }
+    return marks === 2 ? 1 : weightedChoice([
+      { value: 1, weight: 0.58 },
+      { value: 2, weight: 0.42 },
+    ]);
+  }
+
+  if (mode === 'points') {
+    return weightedChoice([
+      { value: 1, weight: 0.20 },
+      { value: 2, weight: 0.30 },
+      { value: 3, weight: 0.50 },
+    ]);
+  }
+  if (marks === 2) return 1;
+  if (marks === 1) return weightedChoice([
+    { value: 1, weight: 0.18 },
+    { value: 2, weight: 0.67 },
+    { value: 3, weight: 0.15 },
+  ]);
+  return weightedChoice([
+    { value: 1, weight: 0.14 },
+    { value: 2, weight: 0.28 },
+    { value: 3, weight: 0.58 },
+  ]);
 }
 
 function chooseBotAim(playerIndex) {
   const player = game.players[playerIndex];
-  const opponents = activeOpponentsFor(playerIndex);
-  const leadingScore = opponents.length ? Math.max(...opponents.map((opponent) => opponent.score)) : player.score;
-  const scoreDeficit = leadingScore - player.score;
-  const scoringTarget = bestScoringTarget(playerIndex);
+  const pointOptions = scoringTargets(playerIndex);
+  const startedOptions = startedTargets(playerIndex);
+  const freshOptions = newTargets(playerIndex);
+  const strategyRoll = Math.random();
 
-  // Ein normaler Cricket-Spieler punktet nur so lange, bis er ungefähr wieder gleichauf ist.
-  let target = scoreDeficit > 0 && scoringTarget
-    ? scoringTarget
-    : bestClosingTarget(playerIndex);
+  let mode;
+  let target;
 
-  if (!target && scoringTarget) target = scoringTarget;
-  if (!target) target = '20';
-
-  const marks = Number(player.marks[target]) || 0;
-  player.botFocusTarget = marks < 3 ? target : null;
-
-  let aimMultiplier = 1;
-  if (marks >= 3) {
-    const targetValue = TARGET_VALUES[target];
-    if (scoreDeficit <= targetValue) aimMultiplier = 1;
-    else if (scoreDeficit <= targetValue * 2) aimMultiplier = 2;
-    else aimMultiplier = target === 'Bull' ? 2 : 3;
-  } else if (target === 'Bull') {
-    aimMultiplier = marks === 2 ? 1 : 2;
-  } else if (marks === 2) {
-    aimMultiplier = 1;
-  } else if (marks === 1) {
-    aimMultiplier = 2;
+  if (strategyRoll < BOT_STRATEGY.pointsChance && pointOptions.length) {
+    mode = 'points';
+    target = chooseScoringTarget(playerIndex, pointOptions);
+  } else if (
+    strategyRoll < BOT_STRATEGY.pointsChance + BOT_STRATEGY.newFieldChance
+    && freshOptions.length
+  ) {
+    mode = 'new';
+    target = chooseNewTarget(freshOptions);
+  } else if (startedOptions.length) {
+    mode = 'finish';
+    target = chooseStartedTarget(playerIndex, startedOptions);
+  } else if (freshOptions.length) {
+    mode = 'new';
+    target = chooseNewTarget(freshOptions);
+  } else if (pointOptions.length) {
+    mode = 'points';
+    target = chooseScoringTarget(playerIndex, pointOptions);
   } else {
-    aimMultiplier = 3;
+    mode = 'new';
+    target = '20';
   }
 
-  return { target, aimMultiplier };
+  player.botFocusTarget = mode === 'finish' ? target : null;
+  return {
+    target,
+    aimMultiplier: chooseAimMultiplier(playerIndex, target, mode),
+    mode,
+  };
 }
 
 function wait(milliseconds) {
