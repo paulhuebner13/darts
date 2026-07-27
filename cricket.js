@@ -4,7 +4,6 @@ const PROFILE_KEY = 'darts-cricket-profiles-v1';
 const ACTIVE_GAME_KEY = 'darts-cricket-active-v1';
 const HISTORY_KEY = 'darts-cricket-history-v1';
 const THEME_KEY = 'darts-trainer-theme';
-const MAX_PLAYERS = 6;
 const CRICKET_TARGETS = ['20', '19', '18', '17', '16', '15', 'Bull'];
 const INPUT_TARGETS = ['15', '16', '17', '18', '19', '20', 'Bull'];
 const TARGET_VALUES = { '20': 20, '19': 19, '18': 18, '17': 17, '16': 16, '15': 15, Bull: 25 };
@@ -237,10 +236,6 @@ function setSetupMessage(message = '') {
 }
 
 function canAddParticipant() {
-  if (lineup.length >= MAX_PLAYERS) {
-    setSetupMessage(`Maximal ${MAX_PLAYERS} Teilnehmer sind möglich.`);
-    return false;
-  }
   return true;
 }
 
@@ -346,7 +341,7 @@ function renderProfiles() {
   elements.savedPlayers.innerHTML = profiles.map((profile) => `
     <div class="saved-player-row">
       <span class="saved-player-name">${escapeHtml(profile.name)}</span>
-      <button class="add-profile" type="button" data-add-profile="${escapeHtml(profile.id)}" ${isProfileSelected(profile.id) || lineup.length >= MAX_PLAYERS ? 'disabled' : ''}>+</button>
+      <button class="add-profile" type="button" data-add-profile="${escapeHtml(profile.id)}" ${isProfileSelected(profile.id) ? 'disabled' : ''}>+</button>
       <button class="delete-profile" type="button" data-delete-profile="${escapeHtml(profile.id)}" aria-label="${escapeHtml(profile.name)} löschen">×</button>
     </div>
   `).join('');
@@ -447,7 +442,7 @@ function buildGamePlayers(participants) {
     marks: emptyMarks(),
     totalMarks: 0,
     dartsThrown: 0,
-    lastThrows: [],
+    turnThrows: [],
     botFocusTarget: null,
   }));
 }
@@ -510,7 +505,10 @@ function loadActiveGame() {
     player.placement = Number.isInteger(placement) && placement > 0 ? placement : null;
     player.totalMarks = Math.max(0, Number(player.totalMarks) || 0);
     player.dartsThrown = Math.max(0, Number(player.dartsThrown) || 0);
-    player.lastThrows = Array.isArray(player.lastThrows) ? player.lastThrows.slice(-3) : [];
+    player.turnThrows = Array.isArray(player.turnThrows)
+      ? player.turnThrows.slice(0, 3)
+      : (Array.isArray(player.lastThrows) ? player.lastThrows.slice(-3) : []);
+    delete player.lastThrows;
     player.botFocusTarget = CRICKET_TARGETS.includes(player.botFocusTarget) ? player.botFocusTarget : null;
   });
   normalizeLoadedBotNames(raw.players);
@@ -704,7 +702,7 @@ function recordDart(dart, source = 'human') {
     pointsAdded: result.pointsAdded,
   };
   game.dartsThisTurn.push(recordedDart);
-  player.lastThrows = [...(Array.isArray(player.lastThrows) ? player.lastThrows : []), compactDartLabel(dart)].slice(-3);
+  player.turnThrows = [...(Array.isArray(player.turnThrows) ? player.turnThrows : []), compactDartLabel(dart)].slice(0, 3);
 
   let detail = result.pointsAdded > 0 ? ` · +${result.pointsAdded} Punkte` : '';
   if (result.marksAdded > 0) detail += ` · +${result.marksAdded} Mark${result.marksAdded === 1 ? '' : 's'}`;
@@ -740,6 +738,7 @@ function advanceTurn() {
   if (nextIndex <= previousIndex) game.round += 1;
   game.currentPlayerIndex = nextIndex;
   game.dartsThisTurn = [];
+  game.players[nextIndex].turnThrows = [];
   selectedMultiplier = 1;
   persistActiveGame();
   renderGame();
@@ -786,27 +785,40 @@ function renderScoreboard() {
   const headerCells = game.players.map((player, index) => {
     const placed = !isPlayerActive(player);
     const rank = placed ? `<span class="head-rank">${Number(player.placement)}.</span>` : '';
-    const recentThrows = Array.isArray(player.lastThrows) ? player.lastThrows.slice(-3) : [];
-    const paddedThrows = [...Array(Math.max(0, 3 - recentThrows.length)).fill(''), ...recentThrows];
+    const turnThrows = Array.isArray(player.turnThrows) ? player.turnThrows.slice(0, 3) : [];
+    const paddedThrows = [...turnThrows, ...Array(Math.max(0, 3 - turnThrows.length)).fill('')];
     const mpr = formatNumber(calculateMpr(player));
-    const lastThrowsMarkup = paddedThrows.map((label) => `<span class="last-dart-chip ${label ? '' : 'empty'}">${label ? escapeHtml(label) : ''}</span>`).join('');
+    const turnThrowsMarkup = paddedThrows.map((label) => `<span class="last-dart-chip ${label ? '' : 'empty'}">${label ? escapeHtml(label) : ''}</span>`).join('');
+    const dartCount = Math.max(0, Number(player.dartsThrown) || 0);
     return `
       <th class="player-head ${index === game.currentPlayerIndex && !game.pausedForPlacement ? 'active-player' : ''} ${placed ? 'placed-player' : ''}" data-player-index="${index}">
         ${rank}
         <span class="head-name">${escapeHtml(player.name)}</span>
+        <span class="head-darts">${dartCount} Darts</span>
         <span class="head-mpr">MPR ${mpr}</span>
         <span class="head-score">${player.score}</span>
-        <span class="head-last-darts" aria-label="Letzte drei Würfe von ${escapeHtml(player.name)}">${lastThrowsMarkup}</span>
+        <span class="head-last-darts" aria-label="Würfe des aktuellen beziehungsweise letzten Zuges von ${escapeHtml(player.name)}">${turnThrowsMarkup}</span>
       </th>
     `;
   }).join('');
 
-  const rows = CRICKET_TARGETS.map((target) => {
+  const rows = CRICKET_TARGETS.map((target, targetIndex) => {
     const targetComplete = game.players.every((player) => Number(player.marks[target]) >= 3);
     const cells = game.players.map((player, index) => {
-      const marks = Math.min(3, Number(player.marks[target]) || 0);
       const placed = !isPlayerActive(player);
-      return `<td class="mark-cell ${marks >= 3 ? 'closed' : ''} ${index === game.currentPlayerIndex && !game.pausedForPlacement ? 'active-player' : ''} ${placed ? 'placed-player' : ''}" aria-label="${escapeHtml(player.name)} ${escapeHtml(target)}: ${marks} Marks">${getMarkSymbol(marks)}</td>`;
+      if (placed) {
+        if (targetIndex > 0) return '';
+        const placement = Math.max(1, Number(player.placement) || 1);
+        return `
+          <td class="placement-cell placed-player-column" rowspan="${CRICKET_TARGETS.length}" aria-label="${escapeHtml(player.name)}: ${placement}. Platz">
+            <span class="placement-number">${placement}</span>
+            <span class="placement-word">Platz</span>
+          </td>
+        `;
+      }
+
+      const marks = Math.min(3, Number(player.marks[target]) || 0);
+      return `<td class="mark-cell ${marks >= 3 ? 'closed' : ''} ${index === game.currentPlayerIndex && !game.pausedForPlacement ? 'active-player' : ''}" aria-label="${escapeHtml(player.name)} ${escapeHtml(target)}: ${marks} Marks">${getMarkSymbol(marks)}</td>`;
     }).join('');
     return `<tr class="${targetComplete ? 'target-complete' : ''}"><th class="target-cell">${escapeHtml(target)}</th>${cells}</tr>`;
   }).join('');
