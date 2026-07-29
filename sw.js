@@ -1,4 +1,4 @@
-const CACHE_NAME = 'darts-trainer-cache-v20-unlimited-placement-turns';
+const CACHE_NAME = 'darts-trainer-cache-v21-lead-history-details';
 const ASSETS = [
   './',
   './index.html',
@@ -8,9 +8,9 @@ const ASSETS = [
   './app.js?v=13',
   './cricket.html',
   './cricket.css',
-  './cricket.css?v=20',
+  './cricket.css?v=21',
   './cricket.js',
-  './cricket.js?v=20',
+  './cricket.js?v=21',
   './manifest.json',
   './icon.svg'
 ];

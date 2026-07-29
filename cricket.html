@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
-  <link rel="stylesheet" href="cricket.css?v=20" />
+  <link rel="stylesheet" href="cricket.css?v=21" />
   <title>Darts Cricket</title>
 </head>
 <body>
@@ -132,6 +132,25 @@
     </div>
   </dialog>
 
-  <script src="cricket.js?v=20"></script>
+
+  <dialog id="historyDetailDialog" class="history-detail-dialog">
+    <div class="history-detail-content">
+      <div class="history-detail-header">
+        <div>
+          <div class="history-detail-kicker">Cricket-Spiel</div>
+          <h2 id="historyDetailTitle">Spielausgang</h2>
+          <p id="historyDetailMeta" class="history-detail-meta"></p>
+        </div>
+        <button id="closeHistoryDetailBtn" class="history-close-button" type="button" aria-label="Spieldetails schließen">×</button>
+      </div>
+      <div id="historyDetailSummary" class="history-detail-summary"></div>
+      <div class="history-detail-section-title">Ergebnis</div>
+      <div id="historyDetailRanking" class="history-detail-ranking"></div>
+      <div class="history-detail-section-title">Marks je Feld</div>
+      <div id="historyDetailTargets" class="history-target-wrap"></div>
+    </div>
+  </dialog>
+
+  <script src="cricket.js?v=21"></script>
 </body>
 </html>

@@ -7,6 +7,7 @@ const THEME_KEY = 'darts-trainer-theme';
 const CRICKET_TARGETS = ['20', '19', '18', '17', '16', '15', 'Bull'];
 const INPUT_TARGETS = ['15', '16', '17', '18', '19', '20', 'Bull'];
 const TARGET_VALUES = { '20': 20, '19': 19, '18': 18, '17': 17, '16': 16, '15': 15, Bull: 25 };
+const BULL_HIT_FACTOR = 5;
 const BOARD_ORDER = ['20', '1', '18', '4', '13', '6', '10', '15', '2', '17', '3', '19', '7', '16', '8', '11', '14', '9', '12', '5'];
 
 // Die taktische Entscheidung ist bei allen Bots gleich. Nur die Genauigkeit des
@@ -81,6 +82,13 @@ const elements = {
   addBotBtn: document.getElementById('addBotBtn'),
   cricketHistory: document.getElementById('cricketHistory'),
   clearHistoryBtn: document.getElementById('clearHistoryBtn'),
+  historyDetailDialog: document.getElementById('historyDetailDialog'),
+  historyDetailTitle: document.getElementById('historyDetailTitle'),
+  historyDetailMeta: document.getElementById('historyDetailMeta'),
+  historyDetailSummary: document.getElementById('historyDetailSummary'),
+  historyDetailRanking: document.getElementById('historyDetailRanking'),
+  historyDetailTargets: document.getElementById('historyDetailTargets'),
+  closeHistoryDetailBtn: document.getElementById('closeHistoryDetailBtn'),
   backToSetupBtn: document.getElementById('backToSetupBtn'),
   resetGameBtn: document.getElementById('resetGameBtn'),
   scoreboard: document.getElementById('scoreboard'),
@@ -185,7 +193,26 @@ function sanitizeHistory(raw) {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter((entry) => entry && Array.isArray(entry.players) && entry.winnerName)
-    .slice(-500);
+    .slice(-500)
+    .map((entry) => ({
+      ...entry,
+      id: typeof entry.id === 'string' && entry.id ? entry.id : uid('history'),
+      startedAt: Number(entry.startedAt) || Number(entry.finishedAt) || Date.now(),
+      finishedAt: Number(entry.finishedAt) || Date.now(),
+      rounds: Math.max(1, Number(entry.rounds) || 1),
+      players: entry.players.map((player) => ({
+        ...player,
+        score: Math.max(0, Number(player.score) || 0),
+        placement: Number.isInteger(Number(player.placement)) && Number(player.placement) > 0
+          ? Number(player.placement)
+          : null,
+        totalMarks: Math.max(0, Number(player.totalMarks) || 0),
+        dartsThrown: Math.max(0, Number(player.dartsThrown) || 0),
+        marks: player.marks && typeof player.marks === 'object'
+          ? Object.fromEntries(CRICKET_TARGETS.map((target) => [target, Math.max(0, Math.min(3, Number(player.marks[target]) || 0))]))
+          : null,
+      })),
+    }));
 }
 
 profiles = sanitizeProfiles(profiles);
@@ -252,6 +279,48 @@ function calculateMpr(player) {
   return dartsThrown > 0 ? (totalMarks / dartsThrown) * 3 : 0;
 }
 
+function targetHitFactor(target) {
+  return target === 'Bull' ? BULL_HIT_FACTOR : 1;
+}
+
+function relevantLeadTargets() {
+  if (!game) return [];
+  const activePlayers = game.players.filter(isPlayerActive);
+  return CRICKET_TARGETS.filter((target) => activePlayers.some((player) => Number(player.marks[target]) < 3));
+}
+
+function leadPointRate(targets) {
+  if (!game || !targets.length) return 20;
+  const activePlayers = game.players.filter(isPlayerActive);
+  const currentlyScorable = targets.filter((target) => (
+    activePlayers.some((player) => Number(player.marks[target]) >= 3)
+    && activePlayers.some((player) => Number(player.marks[target]) < 3)
+  ));
+  const candidates = currentlyScorable.length ? currentlyScorable : targets;
+  return Math.max(...candidates.map((target) => TARGET_VALUES[target] / targetHitFactor(target)), 1);
+}
+
+function calculateLeadProgress(player, targets, pointRate) {
+  const markProgress = targets.reduce((sum, target) => (
+    sum + Math.min(3, Math.max(0, Number(player.marks[target]) || 0)) * targetHitFactor(target)
+  ), 0);
+  return markProgress + (Math.max(0, Number(player.score) || 0) / pointRate);
+}
+
+function calculateLeadDistances() {
+  if (!game) return [];
+  const targets = relevantLeadTargets();
+  const pointRate = leadPointRate(targets);
+  const progress = game.players.map((player) => (
+    isPlayerActive(player) ? calculateLeadProgress(player, targets, pointRate) : null
+  ));
+  const activeProgress = progress.filter((value) => Number.isFinite(value));
+  const lead = activeProgress.length ? Math.max(...activeProgress) : 0;
+  return progress.map((value) => (
+    Number.isFinite(value) ? Math.max(0, Math.ceil((lead - value) - 1e-9)) : null
+  ));
+}
+
 function findHistoryPlayer(entry, profile) {
   return entry.players.find((player) => (
     player.type === 'human'
@@ -301,7 +370,7 @@ function renderSelectedPlayerStats() {
   const recentRows = [...games].reverse().slice(0, 5).map(({ entry, player }) => {
     const date = new Intl.DateTimeFormat('de-AT', { dateStyle: 'short' }).format(new Date(entry.finishedAt));
     const mpr = Number(player.dartsThrown) > 0 ? formatNumber(Number(player.mpr) || calculateMpr(player)) : '–';
-    return `<div class="player-stat-game"><span>${escapeHtml(date)}</span><strong>${Number(player.placement) || '–'}. Platz</strong><span>MPR ${mpr}</span></div>`;
+    return `<button type="button" class="player-stat-game" data-history-id="${escapeHtml(entry.id)}"><span>${escapeHtml(date)}</span><strong>${Number(player.placement) || '–'}. Platz</strong><span>MPR ${mpr}</span></button>`;
   }).join('');
 
   elements.playerStats.className = 'player-stats';
@@ -782,6 +851,7 @@ function scrollActivePlayerIntoView() {
 }
 
 function renderScoreboard() {
+  const leadDistances = calculateLeadDistances();
   const headerCells = game.players.map((player, index) => {
     const placed = !isPlayerActive(player);
     const rank = placed ? `<span class="head-rank">${Number(player.placement)}.</span>` : '';
@@ -790,12 +860,17 @@ function renderScoreboard() {
     const mpr = formatNumber(calculateMpr(player));
     const turnThrowsMarkup = paddedThrows.map((label) => `<span class="last-dart-chip ${label ? '' : 'empty'}">${label ? escapeHtml(label) : ''}</span>`).join('');
     const dartCount = Math.max(0, Number(player.dartsThrown) || 0);
+    const leadDistance = leadDistances[index];
+    const leadMarkup = placed
+      ? ''
+      : `<span class="head-lead-gap ${leadDistance === 0 ? 'leader' : ''}" aria-label="${leadDistance === 0 ? 'In Führung' : `${leadDistance} Single-Treffer zur Führung`}">${leadDistance === 0 ? 'Führung' : `${leadDistance} Treffer`}</span>`;
     return `
       <th class="player-head ${index === game.currentPlayerIndex && !game.pausedForPlacement ? 'active-player' : ''} ${placed ? 'placed-player' : ''}" data-player-index="${index}">
         ${rank}
         <span class="head-name">${escapeHtml(player.name)}</span>
         <span class="head-darts">${dartCount} Darts</span>
         <span class="head-mpr">MPR ${mpr}</span>
+        ${leadMarkup}
         <span class="head-score">${player.score}</span>
         <span class="head-last-darts" aria-label="Würfe des aktuellen beziehungsweise letzten Zuges von ${escapeHtml(player.name)}">${turnThrowsMarkup}</span>
       </th>
@@ -1219,11 +1294,13 @@ function saveCompletedRanking() {
       profileId: player.profileId || null,
       name: player.name,
       type: player.type,
+      levelKey: player.levelKey || null,
       score: player.score,
       placement: player.placement,
       totalMarks: Math.max(0, Number(player.totalMarks) || 0),
       dartsThrown: Math.max(0, Number(player.dartsThrown) || 0),
       mpr: calculateMpr(player),
+      marks: Object.fromEntries(CRICKET_TARGETS.map((target) => [target, Math.min(3, Math.max(0, Number(player.marks[target]) || 0))])),
     })),
   };
   history.push(record);
@@ -1323,6 +1400,84 @@ function winnerBackToSetup() {
   showSetup();
 }
 
+function formatDuration(milliseconds) {
+  const totalMinutes = Math.max(0, Math.round((Number(milliseconds) || 0) / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0) return `${hours} h ${minutes} min`;
+  return `${Math.max(1, minutes)} min`;
+}
+
+function historyPlayerType(player) {
+  if (player.type !== 'bot') return 'Mensch';
+  return `Bot · ${BOT_LEVELS[player.levelKey]?.label || 'Mittel'}`;
+}
+
+function openHistoryDetail(historyId) {
+  const entry = history.find((gameEntry) => gameEntry.id === historyId);
+  if (!entry) return;
+  const sortedPlayers = [...entry.players].sort((a, b) => {
+    const aPlace = Number(a.placement) || Number.POSITIVE_INFINITY;
+    const bPlace = Number(b.placement) || Number.POSITIVE_INFINITY;
+    return aPlace - bPlace;
+  });
+  const finishedAt = new Date(entry.finishedAt);
+  const date = new Intl.DateTimeFormat('de-AT', { dateStyle: 'full', timeStyle: 'short' }).format(finishedAt);
+  const duration = Math.max(0, Number(entry.finishedAt) - Number(entry.startedAt));
+  const totalDarts = sortedPlayers.reduce((sum, player) => sum + (Number(player.dartsThrown) || 0), 0);
+  const totalMarks = sortedPlayers.reduce((sum, player) => sum + (Number(player.totalMarks) || 0), 0);
+
+  elements.historyDetailTitle.textContent = `${entry.winnerName} gewinnt`;
+  elements.historyDetailMeta.textContent = date;
+  elements.historyDetailSummary.innerHTML = `
+    <div class="history-summary-tile"><span>Dauer</span><strong>${formatDuration(duration)}</strong></div>
+    <div class="history-summary-tile"><span>Runden</span><strong>${Math.max(1, Number(entry.rounds) || 1)}</strong></div>
+    <div class="history-summary-tile"><span>Spieler</span><strong>${sortedPlayers.length}</strong></div>
+    <div class="history-summary-tile"><span>Darts</span><strong>${totalDarts || '–'}</strong></div>
+    <div class="history-summary-tile"><span>Marks</span><strong>${totalMarks || '–'}</strong></div>
+  `;
+  elements.historyDetailRanking.innerHTML = sortedPlayers.map((player) => {
+    const mpr = Number(player.dartsThrown) > 0 ? formatNumber(Number(player.mpr) || calculateMpr(player)) : '–';
+    return `
+      <div class="history-ranking-row ${Number(player.placement) === 1 ? 'winner' : ''}">
+        <div class="history-place">${Number(player.placement) || '–'}.</div>
+        <div class="history-player-main">
+          <strong>${escapeHtml(player.name)}</strong>
+          <span>${escapeHtml(historyPlayerType(player))}</span>
+        </div>
+        <div class="history-player-data"><strong>${Number(player.score) || 0}</strong><span>Punkte</span></div>
+        <div class="history-player-data"><strong>${Number(player.dartsThrown) || '–'}</strong><span>Darts</span></div>
+        <div class="history-player-data"><strong>${mpr}</strong><span>MPR</span></div>
+      </div>
+    `;
+  }).join('');
+
+  const hasTargetData = sortedPlayers.some((player) => player.marks);
+  if (!hasTargetData) {
+    elements.historyDetailTargets.innerHTML = '<div class="empty-copy">Für dieses ältere Spiel wurden noch keine Feldwerte gespeichert.</div>';
+  } else {
+    const head = sortedPlayers.map((player) => `<th>${escapeHtml(player.name)}</th>`).join('');
+    const rows = CRICKET_TARGETS.map((target) => {
+      const cells = sortedPlayers.map((player) => {
+        if (!player.marks) return '<td>–</td>';
+        const marks = Math.min(3, Math.max(0, Number(player.marks[target]) || 0));
+        return `<td class="${marks >= 3 ? 'closed' : ''}">${marks >= 3 ? '○' : marks}</td>`;
+      }).join('');
+      return `<tr><th>${escapeHtml(target)}</th>${cells}</tr>`;
+    }).join('');
+    elements.historyDetailTargets.innerHTML = `
+      <table class="history-target-table">
+        <thead><tr><th>Ziel</th>${head}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+
+  if (typeof elements.historyDetailDialog.showModal === 'function') {
+    if (!elements.historyDetailDialog.open) elements.historyDetailDialog.showModal();
+  }
+}
+
 function renderHistory() {
   elements.clearHistoryBtn.disabled = history.length === 0;
   if (!history.length) {
@@ -1332,13 +1487,12 @@ function renderHistory() {
   }
 
   elements.cricketHistory.className = 'cricket-history';
-  elements.cricketHistory.innerHTML = [...history].reverse().slice(0, 8).map((entry) => {
+  elements.cricketHistory.innerHTML = [...history].reverse().slice(0, 12).map((entry) => {
     const date = new Intl.DateTimeFormat('de-AT', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(entry.finishedAt));
-    const names = entry.players.map((player) => player.name).join(', ');
-    return `<div class="history-row"><div><div class="history-winner">${escapeHtml(entry.winnerName)} gewinnt</div><div class="lineup-meta">${escapeHtml(names)}</div></div><div class="history-meta">${escapeHtml(date)}<br>${Number(entry.rounds) || 1} Runden</div></div>`;
+    const names = [...entry.players].sort((a, b) => (Number(a.placement) || Number.POSITIVE_INFINITY) - (Number(b.placement) || Number.POSITIVE_INFINITY)).map((player) => `${Number(player.placement) || '–'}. ${player.name}`).join(' · ');
+    return `<button type="button" class="history-row" data-history-id="${escapeHtml(entry.id)}"><div><div class="history-winner">${escapeHtml(entry.winnerName)} gewinnt</div><div class="lineup-meta">${escapeHtml(names)}</div></div><div class="history-meta">${escapeHtml(date)}<br>${Number(entry.rounds) || 1} Runden</div></button>`;
   }).join('');
 }
-
 function clearHistory() {
   if (!history.length || !window.confirm('Wirklich die gesamte Cricket-History löschen? Spielerprofile und Around-the-Clock-Daten bleiben erhalten.')) return;
   history = [];
@@ -1421,6 +1575,16 @@ function initEvents() {
   elements.statsPlayerSelect.addEventListener('change', renderSelectedPlayerStats);
   elements.startGameBtn.addEventListener('click', startGameFromLineup);
   elements.clearHistoryBtn.addEventListener('click', clearHistory);
+  const openClickedHistory = (event) => {
+    const button = event.target.closest('[data-history-id]');
+    if (button) openHistoryDetail(button.dataset.historyId);
+  };
+  elements.cricketHistory.addEventListener('click', openClickedHistory);
+  elements.playerStats.addEventListener('click', openClickedHistory);
+  elements.closeHistoryDetailBtn.addEventListener('click', () => elements.historyDetailDialog.close());
+  elements.historyDetailDialog.addEventListener('click', (event) => {
+    if (event.target === elements.historyDetailDialog) elements.historyDetailDialog.close();
+  });
   elements.backToSetupBtn.addEventListener('click', leaveGameForSetup);
   elements.resetGameBtn.addEventListener('click', resetCurrentGame);
   elements.targetButtons.addEventListener('dblclick', (event) => event.preventDefault());
