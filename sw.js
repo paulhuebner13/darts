@@ -1,5 +1,46 @@
-const CACHE='darts-suite-v24';
-const ASSETS=['./','./index.html','./styles.css','./app.js','./mode-nav.css','./cricket.html','./cricket.css','./cricket.js','./501.html','./501.css','./501.js','./manifest.json','./icon.svg'];
-self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)));self.skipWaiting()});
-self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));self.clients.claim()});
-self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith(fetch(e.request).then(r=>{if(r.ok)caches.open(CACHE).then(c=>c.put(e.request,r.clone()));return r}).catch(()=>caches.match(e.request)))});
+const CACHE_NAME = 'darts-suite-v26';
+const ASSETS = [
+  './',
+  './index.html',
+  './styles.css',
+  './app.js',
+  './mode-nav.css',
+  './cricket.html',
+  './cricket.css',
+  './cricket-addons.css',
+  './cricket.js',
+  './501.html',
+  './501.css',
+  './501.js',
+  './manifest.json',
+  './icon.svg'
+];
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) => Promise.all(
+      keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+    ))
+  );
+  self.clients.claim();
+});
+
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+  event.respondWith(
+    fetch(event.request)
+      .then((response) => {
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        }
+        return response;
+      })
+      .catch(() => caches.match(event.request))
+  );
+});

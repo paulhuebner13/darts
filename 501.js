@@ -27,7 +27,20 @@ function shownThrows(p){let arr=game.dartsTurn.length?game.dartsTurn.map(d=>labe
 function renderGame(){
  if(!game)return;let p=game.players[game.current];
  $('playerName').textContent=p.name;$('turnInfo').textContent=p.name;$('dartCount').textContent=`${game.dartsTurn.length}/3`;
- $('scores').innerHTML=game.players.map((x,i)=>`<div class="score-row ${i===game.current?'current':''}"><span><strong>${x.name}</strong><br><span class="player-type">${typeLabel(x)} · ${x.darts} Darts</span></span><span class="score501">${x.score}</span></div>`).join('');
+ $('scores').innerHTML=game.players.map((x,i)=>{
+   const recent=(x.lastThrows||[]).slice(-3);while(recent.length<3)recent.push('–');
+   return `<div class="score-row ${i===game.current?'current':''}" data-player-card="${i}">
+     <div class="player-score-head">
+       <div class="player-score-name"><strong>${x.name}</strong><span class="player-type">${typeLabel(x)} · ${x.darts} Darts</span></div>
+       <div class="player-score-value">${x.score}</div>
+     </div>
+     <div class="player-last-three">${recent.map(v=>`<span>${v}</span>`).join('')}</div>
+   </div>`;
+  }).join('');
+  requestAnimationFrame(()=>{
+    const card=$('scores').querySelector(`[data-player-card="${game.current}"]`);
+    if(card) card.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
+  });
  $('lastThree').innerHTML=shownThrows(p).map(x=>`<div class="last-dart">${x}</div>`).join('');
  renderNumberRows();document.querySelectorAll('[data-m]').forEach(b=>b.classList.toggle('selected',+b.dataset.m===mult));$('checkoutHint').textContent=checkout(p.score);
  let isBot=p.type==='bot';document.querySelector('.throw-card').hidden=isBot;$('botStatus').hidden=!isBot;if(isBot)scheduleBot()
@@ -42,7 +55,7 @@ function advance(){
 function win(p){p.lastThrows=game.dartsTurn.map(d=>label(d.n,d.m)).slice(-3);game.finished=true;localStorage.removeItem(ACTIVE_KEY);let h=load(HISTORY_KEY,[]);h.push({id:game.id,winner:p.name,finishedAt:Date.now(),players:game.players.map(x=>({name:x.name,type:x.type,level:x.level||null,score:x.score,darts:x.darts}))});save(HISTORY_KEY,h);$('winTitle').textContent=`${p.name} gewinnt`;$('winSummary').textContent=`Double Out geschafft nach ${p.darts} Darts.`;$('winDialog').showModal();renderGame()}
 function throwDart(n,m,source='human'){
  if(!game||game.finished||game.dartsTurn.length>=3)return;let p=game.players[game.current];if(source==='human'&&p.type==='bot')return;
- pushUndo();if(game.dartsTurn.length===0)game.turnStart=p.score;let v=n?val(n,m):0;p.darts++;game.dartsTurn.push({n,m,v});let next=p.score-v;
+ pushUndo();if(game.dartsTurn.length===0)game.turnStart=p.score;let v=n?val(n,m):0;p.darts++;game.dartsTurn.push({n,m,v});p.lastThrows=game.dartsTurn.map(d=>label(d.n,d.m)).slice(-3);let next=p.score-v;
  if(next===0&&m===2){p.score=0;win(p);return}
  if(next<0||next===1||(next===0&&m!==2)){p.score=game.turnStart;advance();return}
  p.score=next;if(game.dartsTurn.length===3)advance();else{save(ACTIVE_KEY,game);renderGame()}

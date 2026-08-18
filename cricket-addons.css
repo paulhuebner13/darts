@@ -1,0 +1,128 @@
+/* Only additions for v26. The original cricket.css is untouched. */
+
+.cricket-shell > .mode-topbar {
+  margin-bottom: 14px;
+}
+
+.all-bots-button {
+  width: 100%;
+  min-height: 34px;
+  margin-top: 7px;
+}
+
+.compare-select-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+}
+
+.compare-vs {
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 900;
+}
+
+.comparison-result {
+  margin-top: 10px;
+}
+
+.comparison-scoreboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card-2);
+}
+
+.comparison-player {
+  min-width: 0;
+  text-align: center;
+}
+
+.comparison-player-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .78rem;
+  font-weight: 900;
+}
+
+.comparison-wins {
+  margin-top: 3px;
+  font-size: 1.55rem;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.comparison-middle {
+  text-align: center;
+  color: var(--muted);
+  font-size: .62rem;
+  font-weight: 850;
+}
+
+.comparison-middle strong {
+  display: block;
+  margin-top: 2px;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.comparison-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-top: 7px;
+}
+
+.comparison-column {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.comparison-column-title {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card-2);
+  text-align: center;
+  font-size: .74rem;
+  font-weight: 900;
+}
+
+.comparison-stat {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: .7rem;
+}
+
+.comparison-stat:last-child { border-bottom: 0; }
+.comparison-stat span { color: var(--muted); }
+
+.comparison-footer {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: .68rem;
+  text-align: center;
+}
+
+@media (max-width: 430px) {
+  .comparison-columns { gap: 5px; }
+  .comparison-stat {
+    display: block;
+    text-align: center;
+    padding: 6px 4px;
+  }
+  .comparison-stat span {
+    display: block;
+    margin-bottom: 2px;
+  }
+}
