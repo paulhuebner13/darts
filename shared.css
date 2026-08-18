@@ -1,0 +1,75 @@
+/* Shared navigation across Around the Clock, Cricket and 501 */
+:root{
+  --mode-bg:var(--card,#fff);
+  --mode-text:var(--muted,#6b7280);
+  --mode-active:var(--primary,#2563eb);
+  --mode-border:var(--border,var(--line,#e5e7eb));
+  --mode-shadow:var(--shadow,0 8px 24px rgba(15,23,42,.08));
+}
+.app-shell,.shell{
+  width:min(100%,880px)!important;
+  max-width:880px!important;
+  margin-left:auto!important;
+  margin-right:auto!important;
+  padding-left:12px!important;
+  padding-right:12px!important;
+}
+.mode-topbar{
+  width:100%!important;
+  display:flex!important;
+  align-items:center!important;
+  gap:8px!important;
+  position:sticky!important;
+  top:0!important;
+  z-index:50!important;
+  padding:8px 0!important;
+  margin:0 0 12px!important;
+  background:var(--bg)!important;
+}
+.mode-switch{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:5px!important;
+  flex:1 1 auto!important;
+  min-width:0!important;
+  padding:4px!important;
+  border-radius:16px!important;
+  background:var(--mode-bg)!important;
+  box-shadow:var(--mode-shadow)!important;
+}
+.mode-pill{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  min-width:0!important;
+  min-height:42px!important;
+  padding:7px 4px!important;
+  border-radius:12px!important;
+  color:var(--mode-text)!important;
+  text-decoration:none!important;
+  text-align:center!important;
+  font-size:.82rem!important;
+  line-height:1.05!important;
+  font-weight:800!important;
+  white-space:nowrap!important;
+}
+.mode-pill.active{
+  background:var(--mode-active)!important;
+  color:#fff!important;
+}
+.mode-topbar .icon-button{
+  flex:0 0 44px!important;
+  width:44px!important;
+  height:44px!important;
+  margin:0!important;
+  border:1px solid var(--mode-border)!important;
+  border-radius:13px!important;
+  background:var(--mode-bg)!important;
+  color:var(--text)!important;
+  box-shadow:var(--mode-shadow)!important;
+}
+@media(max-width:420px){
+  .mode-topbar{gap:6px!important}
+  .mode-pill{font-size:.72rem!important}
+  .mode-topbar .icon-button{flex-basis:42px!important;width:42px!important;height:42px!important}
+}
