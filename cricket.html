@@ -1,14 +1,18 @@
 <!DOCTYPE html>
-<html lang="de"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111827"><link rel="manifest" href="manifest.json"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="stylesheet" href="cricket.css"><title>Darts Cricket</title>  <link rel="stylesheet" href="shared.css" />
+<html lang="de"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111827"><link rel="manifest" href="manifest.json"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="stylesheet" href="cricket.css"><title>Darts Cricket</title>  <link rel="stylesheet" href="mode-nav.css" />
 </head>
 <body><div class="shell">
 <header class="mode-topbar"><nav class="mode-switch"><a class="mode-pill" href="index.html">Around the Clock</a><a class="mode-pill active" href="cricket.html">Cricket</a><a class="mode-pill" href="501.html">501</a></nav><button id="themeToggle" class="icon-button" type="button">◐</button></header>
 <main>
 <section id="setupView">
-  <article class="card"><div class="heading"><h2>Teilnehmer</h2><span id="lineupCount" class="badge">0</span></div><div id="lineup" class="lineup empty">Noch niemand im Spiel.</div><div class="actions cricket-main-actions"><button id="startBtn" class="primary" disabled>Cricket starten</button><button id="addAllBotsBtn" class="secondary">Alle 5 Bots hinzufügen</button></div></article>
+  <article class="card"><div class="heading"><h2>Teilnehmer</h2><span id="lineupCount" class="badge">0</span></div><div id="lineup" class="lineup empty">Noch niemand im Spiel.</div><div class="actions"><button id="startBtn" class="primary" disabled>Cricket starten</button><button id="addAllBotsBtn" class="secondary">Alle Bots hinzufügen</button></div></article>
   <div class="two-col"><article class="card"><div class="heading"><h2>Menschen</h2></div><form id="profileForm" class="inline"><input id="profileName" maxlength="24" placeholder="Neuer Name"><button class="primary square">+</button></form><div id="profiles"></div></article>
   <article class="card"><div class="heading"><h2>Bot</h2></div><div class="inline"><select id="botLevel"><option value="rookie">Anfänger</option><option value="casual">Leicht</option><option value="normal" selected>Mittel</option><option value="strong">Schwer</option><option value="expert">Profi</option></select><button id="addBotBtn" class="primary square">+</button></div><p class="muted">„Alle Bots hinzufügen“ fügt Anfänger, Leicht, Mittel, Schwer und Profi in genau dieser Reihenfolge hinzu.</p></article></div>
-  <article class="card comparison-card"><div class="heading"><h2>Spielervergleich</h2><span class="muted">Head-to-Head</span></div><p class="muted comparison-intro">Verglichen werden ausschließlich abgeschlossene Spiele, in denen beide ausgewählten Spieler mitgespielt haben.</p><div class="compare-selects"><select id="compareA"></select><span>vs.</span><select id="compareB"></select></div><div id="comparison" class="empty">Wähle zwei Spieler.</div></article>
+  <article class="card compare-card">
+  <div class="heading"><h2>Spielervergleich</h2><span class="muted">Head-to-Head</span></div>
+  <div class="compare-selects"><select id="compareA"></select><span class="compare-vs">vs.</span><select id="compareB"></select></div>
+  <div id="comparison" class="empty">Wähle zwei unterschiedliche Spieler.</div>
+</article>
   <article class="card"><div class="heading"><h2>Letzte Spiele</h2><button id="clearHistoryBtn" class="text-danger">History löschen</button></div><div id="history" class="empty">Noch kein Spiel abgeschlossen.</div></article>
 </section>
 <section id="gameView" hidden>

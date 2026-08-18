@@ -7,105 +7,81 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="501.css" />
-  <link rel="stylesheet" href="shared.css" />
+  <link rel="stylesheet" href="mode-nav.css" />
   <title>Darts 501</title>
 </head>
-<body>
-<div class="shell">
-  <header class="mode-topbar">
-    <nav class="mode-switch" aria-label="Spielmodus">
-      <a class="mode-pill" href="index.html">Around the Clock</a>
-      <a class="mode-pill" href="cricket.html">Cricket</a>
-      <a class="mode-pill active" href="501.html">501</a>
-    </nav>
-    <button id="themeToggle" class="icon-button" type="button" aria-label="Hell-/Dunkelmodus umschalten">◐</button>
-  </header>
-
-  <main>
-    <section id="setup">
-      <article class="card">
-        <div class="heading"><h2>501 · Double Out</h2><span class="badge">501</span></div>
-        <p class="muted">Exakt 0, letzter Dart muss Double oder Inner Bull sein. Bei Bust wird die gesamte Aufnahme zurückgesetzt.</p>
-        <div id="lineup" class="empty">Noch niemand ausgewählt.</div>
-        <button id="startBtn" class="primary full" disabled>501 starten</button>
-      </article>
-
-      <div class="two-col">
-        <article class="card">
-          <div class="heading"><h2>Menschen</h2></div>
-          <form id="nameForm" class="inline">
-            <input id="nameInput" maxlength="24" placeholder="Name" />
-            <button class="primary square" type="submit">+</button>
-          </form>
-          <div id="savedPlayers"></div>
-        </article>
-
-        <article class="card">
-          <div class="heading"><h2>Bots</h2></div>
-          <div class="inline">
-            <select id="botLevel">
-              <option value="rookie">Anfänger</option>
-              <option value="casual">Leicht</option>
-              <option value="normal" selected>Mittel</option>
-              <option value="strong">Schwer</option>
-              <option value="expert">Profi</option>
-            </select>
-            <button id="addBotBtn" class="primary square" type="button">+</button>
-          </div>
-          <button id="addAllBotsBtn" class="secondary full" type="button">Alle 5 Bots hinzufügen</button>
-          <p class="muted bot-note">Die fünf Stufen verwenden dieselben Genauigkeitsfaktoren wie im Cricket.</p>
-        </article>
+<body><div class="shell">
+<header class="mode-topbar">
+  <nav class="mode-switch" aria-label="Spielmodus">
+    <a class="mode-pill" href="index.html">Around the Clock</a>
+    <a class="mode-pill" href="cricket.html">Cricket</a>
+    <a class="mode-pill active" href="501.html">501</a>
+  </nav>
+  <button id="themeToggle" class="icon-button" type="button" aria-label="Hell-/Dunkelmodus umschalten">◐</button>
+</header>
+<main>
+<section id="setup">
+  <article class="card">
+    <div class="heading"><h2>501 · Double Out</h2><span class="badge">501</span></div>
+    <div id="lineup" class="empty">Noch niemand ausgewählt.</div>
+    <button id="startBtn" class="primary full" disabled>501 starten</button>
+  </article>
+  <div class="two-col">
+    <article class="card">
+      <div class="heading"><h2>Menschen</h2></div>
+      <form id="nameForm" class="inline"><input id="nameInput" maxlength="24" placeholder="Name"><button class="primary square" type="submit">+</button></form>
+      <div id="savedPlayers"></div>
+    </article>
+    <article class="card">
+      <div class="heading"><h2>Bots</h2></div>
+      <div class="inline">
+        <select id="botLevel">
+          <option value="rookie">Anfänger</option><option value="casual">Leicht</option><option value="normal" selected>Mittel</option><option value="strong">Schwer</option><option value="expert">Profi</option>
+        </select>
+        <button id="addBotBtn" class="primary square" type="button">+</button>
       </div>
-    </section>
-
-    <section id="game" hidden>
-      <div class="game-tools">
-        <button id="backBtn" class="tool" type="button" aria-label="Zurück">←</button>
-        <div id="turnInfo" class="turn-info"></div>
-        <button id="undoBtn" class="tool" type="button" aria-label="Letzten Dart zurück">↶</button>
-        <button id="resetBtn" class="tool danger" type="button" aria-label="Spiel neu starten">↻</button>
-      </div>
-
-      <article class="card"><div id="scores"></div></article>
-
-      <article class="card throw-card">
-        <div class="heading">
-          <h2 id="playerName"></h2>
-          <span id="dartCount" class="badge">0/3</span>
-        </div>
-
-        <div class="last-three-wrap">
-          <div class="last-three-label">Letzte 3 Würfe</div>
-          <div id="lastThree" class="last-three" aria-label="Letzte drei Würfe">
-            <span>–</span><span>–</span><span>–</span>
-          </div>
-        </div>
-
-        <div id="numbers" class="num-grid" aria-label="Zahlen"></div>
-
-        <div class="mult-grid">
-          <button data-m="1" class="mult selected" type="button">Single</button>
-          <button data-m="2" class="mult" type="button">Double</button>
-          <button data-m="3" class="mult" type="button">Triple</button>
-        </div>
-
-        <button id="missBtn" class="secondary full miss-button" type="button">Miss</button>
-        <div id="checkoutHint" class="hint"></div>
-      </article>
-
-      <div id="botStatus" class="card bot-status" hidden>Bot wirft …</div>
-    </section>
-  </main>
-</div>
-
-<dialog id="winDialog">
-  <div class="dialog-card">
-    <h2 id="winTitle"></h2>
-    <p id="winSummary"></p>
-    <button id="againBtn" class="primary">Revanche</button>
-    <button id="setupBtn" class="secondary">Teilnehmer</button>
+      <button id="addAllBotsBtn" class="secondary full" type="button">Alle 5 Bots hinzufügen</button>
+    </article>
   </div>
-</dialog>
+</section>
+
+<section id="game" hidden>
+  <div class="game-tools">
+    <button id="backBtn" class="tool" type="button">←</button>
+    <div id="turnInfo" class="turn-info"></div>
+    <button id="undoBtn" class="tool" type="button">↶</button>
+    <button id="resetBtn" class="tool danger" type="button">↻</button>
+  </div>
+
+  <article class="card"><div id="scores"></div></article>
+
+  <article class="card throw-card">
+    <div class="heading"><h2 id="playerName">Spieler</h2><span id="dartCount" class="badge">0/3</span></div>
+
+    <div class="last-three-section">
+      <div class="last-three-title">Letzte 3 Würfe</div>
+      <div id="lastThree" class="last-three">
+        <div class="last-dart">–</div><div class="last-dart">–</div><div class="last-dart">–</div>
+      </div>
+    </div>
+
+    <div class="number-rows">
+      <div id="numbersRow1" class="number-row"></div>
+      <div id="numbersRow2" class="number-row"></div>
+      <div id="numbersRow3" class="number-row"></div>
+    </div>
+
+    <div class="mult-grid">
+      <button data-m="1" class="mult selected" type="button">Single</button>
+      <button data-m="2" class="mult" type="button">Double</button>
+      <button data-m="3" class="mult" type="button">Triple</button>
+    </div>
+    <button id="missBtn" class="secondary full miss" type="button">Miss</button>
+    <div id="checkoutHint" class="hint"></div>
+  </article>
+  <div id="botStatus" class="card bot-status" hidden>Bot wirft …</div>
+</section>
+</main></div>
+<dialog id="winDialog"><div class="dialog-card"><h2 id="winTitle"></h2><p id="winSummary"></p><button id="againBtn" class="primary">Revanche</button><button id="setupBtn" class="secondary">Teilnehmer</button></div></dialog>
 <script src="501.js"></script>
-</body>
-</html>
+</body></html>

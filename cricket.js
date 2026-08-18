@@ -40,6 +40,67 @@ $('targetButtons').onclick=e=>{let b=e.target.closest('[data-target]');if(b)reco
 $('undoBtn').onclick=()=>{if(!game?.undo?.length)return;game=game.undo.pop();save(ACTIVE_KEY,game);renderGame()};$('backBtn').onclick=()=>{if(game&&!game.finished)save(ACTIVE_KEY,game);$('gameView').hidden=true;$('setupView').hidden=false;renderSetup()};$('resetBtn').onclick=()=>{if(confirm('Spiel neu starten?')){game=newGame();save(ACTIVE_KEY,game);renderGame();scheduleBot()}};
 $('startBtn').onclick=()=>{game=newGame();save(ACTIVE_KEY,game);$('setupView').hidden=true;$('gameView').hidden=false;renderGame();scheduleBot()};$('continueBtn').onclick=()=>{$('placeDialog').close();if(!game.finished){advance()}};$('newGameBtn').onclick=()=>{$('placeDialog').close();game=null;localStorage.removeItem(ACTIVE_KEY);$('gameView').hidden=true;$('setupView').hidden=false;renderSetup()};
 function renderHistory(){if(!history.length){$('history').className='empty';$('history').textContent='Noch kein Spiel abgeschlossen.';return}$('history').className='';$('history').innerHTML=[...history].reverse().slice(0,15).map(h=>`<div class="history-row"><span><strong>${h.winnerName}</strong> gewinnt<br><small class="muted">${new Date(h.finishedAt).toLocaleString('de-AT')}</small></span><span>${h.players.sort((a,b)=>a.placement-b.placement).map(p=>`${p.placement}. ${p.name}`).join(' · ')}</span></div>`).join('')}
-function renderCompare(){let a=$('compareA').value,b=$('compareB').value;if(!a||!b||a===b){$('comparison').className='empty';$('comparison').textContent='Wähle zwei unterschiedliche Spieler.';return}let pa=profiles.find(p=>p.id===a),pb=profiles.find(p=>p.id===b);let games=history.map(h=>({h,a:h.players.find(p=>p.profileId===a),b:h.players.find(p=>p.profileId===b)})).filter(x=>x.a&&x.b);let aw=games.filter(x=>x.a.placement<x.b.placement).length,bw=games.filter(x=>x.b.placement<x.a.placement).length,ap=games.length?games.reduce((s,x)=>s+x.a.placement,0)/games.length:0,bp=games.length?games.reduce((s,x)=>s+x.b.placement,0)/games.length:0;let am=games.reduce((s,x)=>s+(x.a.marksTotal||0),0),ad=games.reduce((s,x)=>s+(x.a.dartsThrown||0),0),bm=games.reduce((s,x)=>s+(x.b.marksTotal||0),0),bd=games.reduce((s,x)=>s+(x.b.dartsThrown||0),0);$('comparison').className='compare-grid';$('comparison').innerHTML=`<div><span>Gemeinsame Spiele</span><strong>${games.length}</strong></div><div><span>${pa.name} davor</span><strong>${aw}</strong></div><div><span>${pb.name} davor</span><strong>${bw}</strong></div><div><span>Head-to-Head</span><strong>${aw}:${bw}</strong></div><div><span>Ø Platz ${pa.name}</span><strong>${games.length?ap.toFixed(2):'–'}</strong></div><div><span>Ø Platz ${pb.name}</span><strong>${games.length?bp.toFixed(2):'–'}</strong></div><div><span>MPR ${pa.name}</span><strong>${ad?((am/ad)*3).toFixed(2):'–'}</strong></div><div><span>MPR ${pb.name}</span><strong>${bd?((bm/bd)*3).toFixed(2):'–'}</strong></div>`}
+function renderCompare(){
+ let a=$('compareA').value,b=$('compareB').value;
+ if(!a||!b||a===b){
+   $('comparison').className='empty';
+   $('comparison').textContent='Wähle zwei unterschiedliche Spieler.';
+   return
+ }
+ let pa=profiles.find(p=>p.id===a),pb=profiles.find(p=>p.id===b);
+ let games=history.map(h=>({
+   h,
+   a:h.players.find(p=>p.profileId===a),
+   b:h.players.find(p=>p.profileId===b)
+ })).filter(x=>x.a&&x.b);
+
+ let aw=games.filter(x=>Number(x.a.placement)<Number(x.b.placement)).length;
+ let bw=games.filter(x=>Number(x.b.placement)<Number(x.a.placement)).length;
+ let ties=games.length-aw-bw;
+ let ap=games.length?games.reduce((s,x)=>s+Number(x.a.placement||0),0)/games.length:null;
+ let bp=games.length?games.reduce((s,x)=>s+Number(x.b.placement||0),0)/games.length:null;
+ let am=games.reduce((s,x)=>s+(Number(x.a.marksTotal)||0),0);
+ let ad=games.reduce((s,x)=>s+(Number(x.a.dartsThrown)||0),0);
+ let bm=games.reduce((s,x)=>s+(Number(x.b.marksTotal)||0),0);
+ let bd=games.reduce((s,x)=>s+(Number(x.b.dartsThrown)||0),0);
+ let ampr=ad?(am/ad)*3:null,bmpr=bd?(bm/bd)*3:null;
+ let apts=games.length?games.reduce((s,x)=>s+(Number(x.a.score)||0),0)/games.length:null;
+ let bpts=games.length?games.reduce((s,x)=>s+(Number(x.b.score)||0),0)/games.length:null;
+
+ $('comparison').className='comparison-shell';
+ $('comparison').innerHTML=`
+   <div class="compare-scoreboard">
+     <div class="compare-player">
+       <div class="compare-player-name">${pa.name}</div>
+       <div class="compare-wins">${aw}</div>
+     </div>
+     <div class="compare-middle">
+       DIREKT VOR DEM ANDEREN
+       <strong>${aw}:${bw}</strong>
+     </div>
+     <div class="compare-player">
+       <div class="compare-player-name">${pb.name}</div>
+       <div class="compare-wins">${bw}</div>
+     </div>
+   </div>
+   <div class="compare-details">
+     <div class="compare-column">
+       <div class="compare-column-head">${pa.name}</div>
+       <div class="compare-stat"><span>Ø Platz</span><strong>${ap===null?'–':ap.toFixed(2)}</strong></div>
+       <div class="compare-stat"><span>MPR</span><strong>${ampr===null?'–':ampr.toFixed(2)}</strong></div>
+       <div class="compare-stat"><span>Ø Punkte</span><strong>${apts===null?'–':apts.toFixed(1)}</strong></div>
+       <div class="compare-stat"><span>Vor ${pb.name}</span><strong>${aw}×</strong></div>
+     </div>
+     <div class="compare-column">
+       <div class="compare-column-head">${pb.name}</div>
+       <div class="compare-stat"><span>Ø Platz</span><strong>${bp===null?'–':bp.toFixed(2)}</strong></div>
+       <div class="compare-stat"><span>MPR</span><strong>${bmpr===null?'–':bmpr.toFixed(2)}</strong></div>
+       <div class="compare-stat"><span>Ø Punkte</span><strong>${bpts===null?'–':bpts.toFixed(1)}</strong></div>
+       <div class="compare-stat"><span>Vor ${pa.name}</span><strong>${bw}×</strong></div>
+     </div>
+   </div>
+   <div class="compare-footer">${games.length} gemeinsame Spiele${ties?` · ${ties} Gleichstand${ties===1?'':'e'}`:''}</div>
+ `;
+}
 $('compareA').onchange=renderCompare;$('compareB').onchange=renderCompare;$('clearHistoryBtn').onclick=()=>{if(history.length&&confirm('History löschen?')){history=[];save(HISTORY_KEY,history);renderSetup()}};
 let activeGame=load(ACTIVE_KEY,null);if(activeGame&&!activeGame.finished){game=activeGame;$('setupView').hidden=true;$('gameView').hidden=false;renderGame();scheduleBot()}else renderSetup();
