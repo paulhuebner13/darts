@@ -126,3 +126,22 @@
     margin-bottom: 2px;
   }
 }
+
+
+/* v28: tiny vertical fit adjustment only for the Cricket throw controls (~5%). */
+body.game-active .throw-area{
+  padding:clamp(6px,1.2dvh,10px);
+}
+body.game-active .target-button-grid{
+  gap:clamp(4px,.9dvh,7px);
+}
+body.game-active .target-button{
+  height:clamp(37px,5.9dvh,49px);
+}
+body.game-active .multiplier-grid{
+  margin-top:clamp(5px,1dvh,8px);
+  gap:clamp(5px,1dvh,8px);
+}
+body.game-active .modifier-button{
+  height:clamp(38px,6dvh,49px);
+}
