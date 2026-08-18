@@ -33,16 +33,24 @@ function renderGame(){
  $('scores').innerHTML=game.players.map((x,i)=>{
    const recent=(x.lastThrows||[]).slice(-3);
    while(recent.length<3)recent.push('–');
+
    return `<div class="score-row ${i===game.current?'current':''}" data-player-row="${i}">
-     <div class="player-row-name">${x.name}</div>
+     <div class="player-row-main">
+       <div class="player-row-name">${x.name}</div>
+       <div class="player-row-dartcount">${x.darts} Darts</div>
+     </div>
      <div class="player-row-darts">${recent.map(v=>`<span>${v}</span>`).join('')}</div>
      <div class="player-row-score">${x.score}</div>
    </div>`;
  }).join('');
 
  requestAnimationFrame(()=>{
-   const row=$('scores').querySelector(`[data-player-row="${game.current}"]`);
-   if(row) row.scrollIntoView({behavior:'smooth',block:'nearest',inline:'nearest'});
+   const list=$('scores');
+   const row=list.querySelector(`[data-player-row="${game.current}"]`);
+   if(row){
+     const top=row.offsetTop-(list.clientHeight-row.offsetHeight)/2;
+     list.scrollTo({top:Math.max(0,top),behavior:'smooth'});
+   }
  });
 
  renderNumberRows();
@@ -56,8 +64,12 @@ function renderGame(){
  $('checkoutHint').textContent=checkoutRoute(p.score,remainingDarts);
 
  const isBot=p.type==='bot';
- document.querySelector('.throw-card').hidden=isBot;
+ // Keep the number input visible at all times; disable clicks while a bot is playing
+ // instead of hiding the whole throw area.
+ document.querySelector('.throw-card').hidden=false;
  $('botStatus').hidden=!isBot;
+ document.querySelector('.throw-card').classList.toggle('bot-turn',isBot);
+
  if(isBot)scheduleBot();
 }
 function finishDarts(){

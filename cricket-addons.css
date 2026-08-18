@@ -145,3 +145,24 @@ body.game-active .multiplier-grid{
 body.game-active .modifier-button{
   height:clamp(38px,6dvh,49px);
 }
+
+
+/* v29: a little more vertical compaction, still only the Cricket input area. */
+body.game-active .throw-area{
+  padding:clamp(4px,.8dvh,7px)!important;
+}
+body.game-active .target-button-grid{
+  gap:clamp(3px,.65dvh,5px)!important;
+}
+body.game-active .target-button{
+  height:clamp(34px,5.35dvh,45px)!important;
+  min-height:34px!important;
+}
+body.game-active .multiplier-grid{
+  margin-top:clamp(3px,.65dvh,5px)!important;
+  gap:clamp(4px,.75dvh,6px)!important;
+}
+body.game-active .modifier-button{
+  height:clamp(35px,5.45dvh,45px)!important;
+  min-height:35px!important;
+}

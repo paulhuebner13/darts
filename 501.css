@@ -281,3 +281,105 @@ html,body{
   .player-row-darts span{height:26px;font-size:.62rem}
   .player-row-score{font-size:1.08rem}
 }
+
+
+/* v29: exact compact 501 layout */
+.player-list{
+  max-height:min(30dvh,230px)!important;
+}
+.player-list .score-row{
+  grid-template-columns:minmax(72px,1fr) minmax(108px,1.35fr) 48px!important;
+  min-height:44px!important;
+}
+.player-row-main{
+  min-width:0;
+}
+.player-row-name{
+  font-size:.84rem!important;
+  font-weight:900!important;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.player-row-dartcount{
+  margin-top:1px;
+  color:var(--muted);
+  font-size:.62rem;
+  font-weight:700;
+}
+.player-row-darts{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:4px!important;
+}
+.player-row-darts span{
+  height:27px!important;
+  font-size:.66rem!important;
+}
+.player-row-score{
+  text-align:right!important;
+  font-size:1.18rem!important;
+  font-weight:950!important;
+}
+
+/* The number input is deliberately explicit so it cannot collapse/disappear. */
+.number-rows{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:7px!important;
+  width:100%!important;
+  visibility:visible!important;
+  opacity:1!important;
+}
+.number-row{
+  display:grid!important;
+  grid-template-columns:repeat(7,minmax(0,1fr))!important;
+  gap:7px!important;
+  width:100%!important;
+  min-height:44px!important;
+  visibility:visible!important;
+  opacity:1!important;
+}
+.number-row button{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:100%!important;
+  min-width:0!important;
+  min-height:44px!important;
+  padding:4px!important;
+  visibility:visible!important;
+  opacity:1!important;
+  pointer-events:auto!important;
+  position:relative!important;
+  z-index:2!important;
+  border:1px solid var(--line)!important;
+  border-radius:11px!important;
+  background:var(--card2)!important;
+  color:var(--text)!important;
+  font-weight:900!important;
+}
+.throw-card{
+  display:block!important;
+  overflow:visible!important;
+}
+.throw-card.bot-turn .number-row button,
+.throw-card.bot-turn .mult,
+.throw-card.bot-turn #missBtn{
+  opacity:.45!important;
+  pointer-events:none!important;
+}
+.checkout-route{
+  min-height:0!important;
+}
+.checkout-route:empty{
+  display:none!important;
+}
+
+@media(max-width:420px){
+  .player-list .score-row{
+    grid-template-columns:minmax(62px,.9fr) minmax(96px,1.35fr) 42px!important;
+  }
+  .number-row{gap:5px!important}
+  .number-row button{min-height:42px!important;font-size:.9rem!important}
+}
