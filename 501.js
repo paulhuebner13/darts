@@ -38,8 +38,23 @@ function scrollCurrent501(behavior='smooth'){
   const list=$('scores');
   const row=list?.querySelector(`[data-player-row="${game.current}"]`);
   if(!list||!row)return;
-  const top=row.offsetTop-(list.clientHeight-row.offsetHeight)/2;
-  list.scrollTo({top:Math.max(0,top),behavior});
+
+  const listRect=list.getBoundingClientRect();
+  const rowRect=row.getBoundingClientRect();
+  const padding=4;
+
+  // Move only as far as necessary to keep the active player fully visible.
+  if(rowRect.top < listRect.top + padding){
+    list.scrollBy({
+      top: rowRect.top - listRect.top - padding,
+      behavior
+    });
+  }else if(rowRect.bottom > listRect.bottom - padding){
+    list.scrollBy({
+      top: rowRect.bottom - listRect.bottom + padding,
+      behavior
+    });
+  }
  });
 }
 function assign501Placement(index){
