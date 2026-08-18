@@ -1,8 +1,7 @@
 {
-  "name": "Darts Trainer & Cricket",
+  "name": "Darts Trainer",
   "short_name": "Darts",
   "start_url": "./index.html",
-  "scope": "./",
   "display": "standalone",
   "background_color": "#111827",
   "theme_color": "#111827",
@@ -11,21 +10,7 @@
       "src": "icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "Cricket spielen",
-      "short_name": "Cricket",
-      "url": "./cricket.html",
-      "icons": [
-        {
-          "src": "icon.svg",
-          "sizes": "any",
-          "type": "image/svg+xml"
-        }
-      ]
+      "purpose": "any maskable"
     }
   ]
 }

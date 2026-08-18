@@ -27,6 +27,7 @@ const elements = {
   bestOverall: document.getElementById('bestOverall'),
   longestStreak: document.getElementById('longestStreak'),
   targetBars: document.getElementById('targetBars'),
+  throwPositionBars: document.getElementById('throwPositionBars'),
   movingAverageChart: document.getElementById('movingAverageChart'),
   historyList: document.getElementById('historyList'),
   exportBtn: document.getElementById('exportBtn'),
@@ -58,7 +59,6 @@ let currentGame = createEmptyGame();
 let currentTab = 'play';
 let finishTimeoutId = null;
 let selectedGameId = null;
-let detailOpenedAt = 0;
 
 function createEmptyGame() {
   return {
@@ -114,11 +114,8 @@ function loadTheme() {
 }
 
 function applyTheme(theme) {
-  const isDark = theme === 'dark';
-  document.body.classList.toggle('dark', isDark);
-  localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
-  const themeMeta = document.querySelector('meta[name="theme-color"]');
-  if (themeMeta) themeMeta.setAttribute('content', isDark ? '#0f172a' : '#f3f4f6');
+  document.body.classList.toggle('dark', theme === 'dark');
+  localStorage.setItem(THEME_KEY, theme);
 }
 
 function switchTab(tabId) {
@@ -214,17 +211,20 @@ function calculateProjectedTotal() {
   const progressedCount = currentGame.currentIndex;
   if (progressedCount === 0 || currentGame.totalThrows === 0) return null;
 
-  const currentPace = currentGame.totalThrows / progressedCount;
   const averages = getTargetAverageMap(STATS_WINDOW);
+  const currentPace = currentGame.totalThrows / progressedCount;
   const remainingTargets = TARGETS.slice(progressedCount);
+  if (!remainingTargets.length) return currentGame.totalThrows;
 
-  const remainingEstimate = remainingTargets.reduce((sum, target) => {
-    const historicalAverage = averages[target] ?? currentPace;
-    const predictedForTarget = Math.max(1, (currentPace + historicalAverage) / 2);
-    return sum + predictedForTarget;
+  const remainingProjection = remainingTargets.reduce((sum, target) => {
+    const historical = averages[target];
+    const blended = historical !== null && historical !== undefined
+      ? (currentPace + historical) / 2
+      : currentPace;
+    return sum + Math.max(1, blended);
   }, 0);
 
-  return currentGame.totalThrows + remainingEstimate;
+  return currentGame.totalThrows + remainingProjection;
 }
 
 function updateGameView() {
@@ -246,12 +246,9 @@ function updateGameView() {
 function flashMissedThrows(selectedHits) {
   selectedHits.forEach((hit, index) => {
     if (hit) return;
-    const circle = throwCircles[index];
-    circle.classList.remove('miss-flash');
-    void circle.offsetWidth;
-    circle.classList.add('miss-flash');
+    throwCircles[index].classList.add('miss-flash');
     window.setTimeout(() => {
-      circle.classList.remove('miss-flash');
+      throwCircles[index].classList.remove('miss-flash');
     }, FLASH_DURATION_MS);
   });
 }
@@ -368,6 +365,52 @@ function renderTargetBars() {
   }).join('');
 }
 
+function getThrowPositionStats(limit = STATS_WINDOW) {
+  const games = getLastGames(limit);
+  const hits = [0, 0, 0];
+  const attempts = [0, 0, 0];
+
+  games.forEach((game) => {
+    let dartPosition = 0;
+    TARGETS.forEach((target) => {
+      const throwsNeeded = Number(game.throwsPerTarget?.[target]) || 0;
+      if (throwsNeeded <= 0) return;
+      for (let i = 0; i < throwsNeeded; i += 1) {
+        const pos = dartPosition % 3;
+        attempts[pos] += 1;
+        if (i === throwsNeeded - 1) hits[pos] += 1;
+        dartPosition += 1;
+      }
+    });
+  });
+
+  return [0, 1, 2].map((index) => ({
+    label: `Wurf ${index + 1}`,
+    hits: hits[index],
+    attempts: attempts[index],
+    rate: attempts[index] ? (hits[index] / attempts[index]) * 100 : null,
+  }));
+}
+
+function renderThrowPositionBars() {
+  if (!elements.throwPositionBars) return;
+  const stats = getThrowPositionStats(STATS_WINDOW);
+  const hasData = stats.some((item) => item.attempts > 0);
+  if (!hasData) {
+    elements.throwPositionBars.className = 'target-bars empty-state';
+    elements.throwPositionBars.textContent = 'Noch keine abgeschlossenen Spiele vorhanden.';
+    return;
+  }
+  elements.throwPositionBars.className = 'target-bars';
+  elements.throwPositionBars.innerHTML = stats.map((item) => `
+    <div class="target-bar-row throw-position-row">
+      <div class="target-name">${item.label}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${item.rate === null ? 0 : item.rate.toFixed(2)}%"></div></div>
+      <div class="bar-value">${item.rate === null ? '–' : `${item.rate.toFixed(1)}%`}</div>
+    </div>
+  `).join('');
+}
+
 function getLongestStreak() {
   return appData.games.reduce((best, game) => {
     let streak = 0;
@@ -459,6 +502,7 @@ function renderStats() {
   const longest = getLongestStreak();
   elements.longestStreak.textContent = longest ? String(longest) : '–';
   renderTargetBars();
+  renderThrowPositionBars();
 }
 
 function renderHistory() {
@@ -486,7 +530,13 @@ function renderHistory() {
 
 function renderDetailBars(game) {
   const maxThrows = Math.max(...TARGETS.map((target) => game.throwsPerTarget?.[target] || 0), 1);
-  elements.detailBars.innerHTML = TARGETS.map((target) => {
+  elements.detailBars.innerHTML = `
+    <div class="target-bar-header">
+      <div>Ziel</div>
+      <div>Würfe</div>
+      <div>#</div>
+    </div>
+  ` + TARGETS.map((target) => {
     const value = game.throwsPerTarget?.[target] || 0;
     const widthPercent = (value / maxThrows) * 100;
     return `
@@ -503,7 +553,6 @@ function openGameDetail(gameId) {
   const game = appData.games.find((entry) => entry.id === gameId);
   if (!game) return;
   selectedGameId = gameId;
-  detailOpenedAt = Date.now();
   const gameIndex = appData.games.findIndex((entry) => entry.id === gameId) + 1;
   elements.detailTitle.textContent = `Spiel ${gameIndex}`;
   elements.detailMeta.textContent = `${formatDate(game.finishedAt)} • ${game.totalThrows} Würfe gesamt`;
@@ -514,7 +563,6 @@ function openGameDetail(gameId) {
 }
 
 function deleteSelectedGame() {
-  if (Date.now() - detailOpenedAt < 350) return;
   if (!selectedGameId) return;
   const game = appData.games.find((entry) => entry.id === selectedGameId);
   if (!game) return;
@@ -585,10 +633,7 @@ function initEvents() {
   elements.importInput.addEventListener('change', importData);
   elements.clearDataBtn.addEventListener('click', clearAllData);
   elements.closeDialogBtn.addEventListener('click', () => elements.finishDialog.close());
-  elements.closeDetailDialogBtn.addEventListener('click', () => {
-    if (Date.now() - detailOpenedAt < 350) return;
-    elements.gameDetailDialog.close();
-  });
+  elements.closeDetailDialogBtn.addEventListener('click', () => elements.gameDetailDialog.close());
   elements.deleteGameBtn.addEventListener('click', deleteSelectedGame);
   elements.themeToggle.addEventListener('click', () => {
     const newTheme = document.body.classList.contains('dark') ? 'light' : 'dark';
