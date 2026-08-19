@@ -318,3 +318,7 @@ body.game-active .modifier-button{
 .online-player-column{display:grid;gap:3px;padding:8px;border:1px solid var(--border);border-radius:11px;background:var(--card)}
 .online-player-column>strong{margin-bottom:2px;font-size:.8rem}
 .online-refresh-button{width:100%;margin-top:7px}
+
+/* v35: fixed shared Paul-vs-Lukas comparison */
+.online-comparison-panel .online-headtohead{margin-top:2px}
+.online-comparison-panel .online-player-columns{grid-template-columns:1fr 1fr}

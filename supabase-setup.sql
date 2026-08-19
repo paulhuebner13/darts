@@ -51,3 +51,34 @@ values
 ('seed-cricket-17', '2026-08-04T22:15:00+02:00'::timestamptz, '2026-08-04T22:15:00+02:00'::timestamptz, 28, 'Bot Schwer', '[{"profileId": null, "name": "Bot Schwer", "type": "bot", "score": 72, "placement": 1, "totalMarks": 27, "dartsThrown": 50, "hitCounts": {"Miss": 11, "15": 4, "16": 5, "17": 5, "18": 6, "19": 7, "20": 8, "Bull": 4}, "mpr": 1.62}, {"profileId": null, "name": "Bot Profi", "type": "bot", "score": 60, "placement": 2, "totalMarks": 34, "dartsThrown": 50, "hitCounts": {"Miss": 7, "15": 4, "16": 5, "17": 6, "18": 7, "19": 8, "20": 9, "Bull": 4}, "mpr": 2.04}, {"profileId": null, "name": "Bot Mittel", "type": "bot", "score": 48, "placement": 3, "totalMarks": 22, "dartsThrown": 50, "hitCounts": {"Miss": 15, "15": 4, "16": 4, "17": 5, "18": 5, "19": 6, "20": 7, "Bull": 4}, "mpr": 1.32}, {"profileId": null, "name": "Lukas", "type": "human", "score": 41, "placement": 4, "totalMarks": 28, "dartsThrown": 50, "hitCounts": {"Miss": 10, "15": 5, "16": 5, "17": 6, "18": 6, "19": 7, "20": 8, "Bull": 3}, "mpr": 1.6800000000000002}, {"profileId": null, "name": "Paul", "type": "human", "score": 29, "placement": 5, "totalMarks": 22, "dartsThrown": 50, "hitCounts": {"Miss": 15, "15": 5, "16": 5, "17": 5, "18": 6, "19": 6, "20": 6, "Bull": 2}, "mpr": 1.32}, {"profileId": null, "name": "Bot Anfänger", "type": "bot", "score": 12, "placement": 6, "totalMarks": 12, "dartsThrown": 50, "hitCounts": {"Miss": 24, "15": 4, "16": 4, "17": 4, "18": 4, "19": 4, "20": 4, "Bull": 2}, "mpr": 0.72}, {"profileId": null, "name": "Bot Leicht", "type": "bot", "score": 0, "placement": 7, "totalMarks": 17, "dartsThrown": 50, "hitCounts": {"Miss": 19, "15": 4, "16": 4, "17": 4, "18": 5, "19": 5, "20": 6, "Bull": 3}, "mpr": 1.02}]'::jsonb),
 ('seed-cricket-18', '2026-08-03T21:05:00+02:00'::timestamptz, '2026-08-03T21:05:00+02:00'::timestamptz, 32, 'Bot Profi', '[{"profileId": null, "name": "Bot Profi", "type": "bot", "score": 72, "placement": 1, "totalMarks": 34, "dartsThrown": 50, "hitCounts": {"Miss": 7, "15": 4, "16": 5, "17": 6, "18": 7, "19": 8, "20": 9, "Bull": 4}, "mpr": 2.04}, {"profileId": null, "name": "Bot Schwer", "type": "bot", "score": 60, "placement": 2, "totalMarks": 27, "dartsThrown": 50, "hitCounts": {"Miss": 11, "15": 4, "16": 5, "17": 5, "18": 6, "19": 7, "20": 8, "Bull": 4}, "mpr": 1.62}, {"profileId": null, "name": "Paul", "type": "human", "score": 53, "placement": 3, "totalMarks": 22, "dartsThrown": 50, "hitCounts": {"Miss": 16, "15": 5, "16": 5, "17": 5, "18": 5, "19": 6, "20": 6, "Bull": 2}, "mpr": 1.32}, {"profileId": null, "name": "Bot Mittel", "type": "bot", "score": 36, "placement": 4, "totalMarks": 22, "dartsThrown": 50, "hitCounts": {"Miss": 15, "15": 4, "16": 4, "17": 5, "18": 5, "19": 6, "20": 7, "Bull": 4}, "mpr": 1.32}, {"profileId": null, "name": "Lukas", "type": "human", "score": 29, "placement": 5, "totalMarks": 28, "dartsThrown": 50, "hitCounts": {"Miss": 11, "15": 5, "16": 5, "17": 6, "18": 6, "19": 7, "20": 7, "Bull": 3}, "mpr": 1.6800000000000002}, {"profileId": null, "name": "Bot Anfänger", "type": "bot", "score": 12, "placement": 6, "totalMarks": 12, "dartsThrown": 50, "hitCounts": {"Miss": 24, "15": 4, "16": 4, "17": 4, "18": 4, "19": 4, "20": 4, "Bull": 2}, "mpr": 0.72}, {"profileId": null, "name": "Bot Leicht", "type": "bot", "score": 0, "placement": 7, "totalMarks": 17, "dartsThrown": 50, "hitCounts": {"Miss": 19, "15": 4, "16": 4, "17": 4, "18": 5, "19": 5, "20": 6, "Bull": 3}, "mpr": 1.02}]'::jsonb)
 on conflict (id) do nothing;
+
+
+-- v35: gemeinsame Cricket-Spielerliste
+create table if not exists public.cricket_players (
+  name text primary key,
+  created_at timestamptz not null default now()
+);
+
+alter table public.cricket_players enable row level security;
+
+drop policy if exists "cricket_players_public_read" on public.cricket_players;
+create policy "cricket_players_public_read"
+on public.cricket_players for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "cricket_players_public_insert" on public.cricket_players;
+create policy "cricket_players_public_insert"
+on public.cricket_players for insert
+to anon, authenticated
+with check (length(trim(name)) between 1 and 24);
+
+drop policy if exists "cricket_players_public_delete" on public.cricket_players;
+create policy "cricket_players_public_delete"
+on public.cricket_players for delete
+to anon, authenticated
+using (true);
+
+insert into public.cricket_players (name)
+values ('Paul'), ('Lukas')
+on conflict (name) do nothing;

@@ -24,3 +24,12 @@ Paul Ø Platz: 4,94
 Lukas Ø Platz: 3,56
 Paul MPR: 1,36
 Lukas MPR: 1,71
+
+
+V35:
+- supabase-v35-update.sql einmal im SQL Editor ausführen.
+- Danach sind menschliche Cricket-Spieler global synchron.
+- Name ist die Identifikation.
+- Hinzufügen/Löschen gilt für alle Geräte.
+- Löschen entfernt KEINE alten Spiele und KEINE Statistik.
+- Paul-vs-Lukas bleibt als feste gemeinsame Online-Statistik bestehen.

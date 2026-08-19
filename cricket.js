@@ -80,9 +80,6 @@ const elements = {
   botDifficulty: document.getElementById('botDifficulty'),
   addBotBtn: document.getElementById('addBotBtn'),
   addAllBotsBtn: document.getElementById('addAllBotsBtn'),
-  comparePlayerA: document.getElementById('comparePlayerA'),
-  comparePlayerB: document.getElementById('comparePlayerB'),
-  playerComparison: document.getElementById('playerComparison'),
   cricketHistory: document.getElementById('cricketHistory'),
   clearHistoryBtn: document.getElementById('clearHistoryBtn'),
   backToSetupBtn: document.getElementById('backToSetupBtn'),
@@ -206,6 +203,7 @@ async function loadOnlineHistory({quiet=false}={}) {
     history=sanitizeHistory(mergeHistoryRecords(onlineHistory,localHistory));
     if(elements.onlineStatus)elements.onlineStatus.textContent='online';
     renderHistory();renderProfiles();renderOnlineStats();
+    await loadSharedPlayers({ quiet: true });
     return true;
   }catch(error){
     onlineConnected=false;
@@ -230,7 +228,8 @@ function onlinePlayerByName(entry,name){
   return entry.players.find(p=>String(p?.name||'').toLocaleLowerCase('de')===String(name).toLocaleLowerCase('de'));
 }
 function calculateOnlinePlayerStats(name){
-  const games=history.map(entry=>({entry,player:onlinePlayerByName(entry,name)})).filter(({player})=>player);
+  const source=onlineConnected?onlineHistory:history;
+  const games=source.map(entry=>({entry,player:onlinePlayerByName(entry,name)})).filter(({player})=>player);
   const placements=games.map(({player})=>Number(player.placement)).filter(v=>Number.isFinite(v)&&v>0);
   const wins=games.filter(({player})=>Number(player.placement)===1).length;
   const totalMarks=games.reduce((s,{player})=>s+(Number(player.totalMarks)||0),0);
@@ -241,12 +240,101 @@ function calculateOnlinePlayerStats(name){
 function renderOnlineStats(){
   if(!elements.onlineStats)return;
   const paul=calculateOnlinePlayerStats('Paul'),lukas=calculateOnlinePlayerStats('Lukas');
-  const common=history.map(entry=>({paul:onlinePlayerByName(entry,'Paul'),lukas:onlinePlayerByName(entry,'Lukas')})).filter(x=>x.paul&&x.lukas);
+  const source=onlineConnected?onlineHistory:history;
+  const common=source.map(entry=>({paul:onlinePlayerByName(entry,'Paul'),lukas:onlinePlayerByName(entry,'Lukas')})).filter(x=>x.paul&&x.lukas);
   const paulAhead=common.filter(x=>Number(x.paul.placement)<Number(x.lukas.placement)).length;
   const lukasAhead=common.filter(x=>Number(x.lukas.placement)<Number(x.paul.placement)).length;
   if(!paul.count&&!lukas.count){elements.onlineStats.className='online-stats empty-copy';elements.onlineStats.textContent='Noch keine gemeinsamen Online-Spiele vorhanden.';return}
   elements.onlineStats.className='online-stats';
   elements.onlineStats.innerHTML=`<div class="online-headtohead"><div><span>Paul vorne</span><strong>${paulAhead}</strong></div><div class="online-vs"><span>gemeinsam</span><strong>${common.length}</strong></div><div><span>Lukas vorne</span><strong>${lukasAhead}</strong></div></div><div class="online-player-columns"><div class="online-player-column"><strong>Paul</strong><span>${paul.count} Spiele</span><span>${paul.wins} Siege</span><span>Ø Platz ${paul.averagePlacement===null?'–':formatNumber(paul.averagePlacement)}</span><span>MPR ${paul.mpr===null?'–':formatNumber(paul.mpr)}</span></div><div class="online-player-column"><strong>Lukas</strong><span>${lukas.count} Spiele</span><span>${lukas.wins} Siege</span><span>Ø Platz ${lukas.averagePlacement===null?'–':formatNumber(lukas.averagePlacement)}</span><span>MPR ${lukas.mpr===null?'–':formatNumber(lukas.mpr)}</span></div></div>`;
+}
+
+
+function profileFromSharedName(name) {
+  const cleanName = String(name || '').trim().replace(/\s+/g, ' ').slice(0, 24);
+  return {
+    id: `shared-${cleanName.toLocaleLowerCase('de')}`,
+    name: cleanName,
+    createdAt: Date.now(),
+  };
+}
+
+async function loadSharedPlayers({ quiet = false } = {}) {
+  if (!supabaseEnabled()) return false;
+  try {
+    const config = supabaseConfig();
+    const response = await fetch(
+      `${config.url}/rest/v1/cricket_players?select=name&order=name.asc`,
+      { headers: supabaseHeaders() }
+    );
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const rows = await response.json();
+    const names = Array.isArray(rows) ? rows.map((row) => String(row.name || '').trim()).filter(Boolean) : [];
+    profiles = names.map(profileFromSharedName);
+    saveJson(PROFILE_KEY, profiles);
+
+    const allowedNames = new Set(names.map((name) => name.toLocaleLowerCase('de')));
+    lineup = lineup.filter((participant) => (
+      participant.type === 'bot'
+      || allowedNames.has(String(participant.name || '').toLocaleLowerCase('de'))
+    ));
+
+    renderLineup();
+    return true;
+  } catch (error) {
+    if (!quiet) setSetupMessage(`Spielerliste konnte nicht online geladen werden (${error.message}).`);
+    return false;
+  }
+}
+
+async function createSharedPlayer(name) {
+  const cleanName = String(name || '').trim().replace(/\s+/g, ' ').slice(0, 24);
+  if (!cleanName) return false;
+
+  if (!supabaseEnabled()) {
+    if (!profiles.some((profile) => profile.name.toLocaleLowerCase('de') === cleanName.toLocaleLowerCase('de'))) {
+      profiles.push(profileFromSharedName(cleanName));
+      saveJson(PROFILE_KEY, profiles);
+    }
+    return true;
+  }
+
+  const config = supabaseConfig();
+  const response = await fetch(`${config.url}/rest/v1/cricket_players`, {
+    method: 'POST',
+    headers: supabaseHeaders({ Prefer: 'resolution=ignore-duplicates,return=minimal' }),
+    body: JSON.stringify({ name: cleanName }),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  await loadSharedPlayers({ quiet: true });
+  return true;
+}
+
+async function deleteSharedPlayer(name) {
+  const cleanName = String(name || '').trim();
+  if (!cleanName) return false;
+
+  if (supabaseEnabled()) {
+    const config = supabaseConfig();
+    const response = await fetch(
+      `${config.url}/rest/v1/cricket_players?name=eq.${encodeURIComponent(cleanName)}`,
+      {
+        method: 'DELETE',
+        headers: supabaseHeaders({ Prefer: 'return=minimal' }),
+      }
+    );
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    await loadSharedPlayers({ quiet: true });
+  } else {
+    profiles = profiles.filter((profile) => profile.name !== cleanName);
+    saveJson(PROFILE_KEY, profiles);
+  }
+
+  lineup = lineup.filter((participant) => (
+    participant.type === 'bot' || participant.name !== cleanName
+  ));
+  renderLineup();
+  return true;
 }
 
 function escapeHtml(value) {
@@ -489,111 +577,10 @@ function renderStatsPlayerOptions() {
 }
 
 
-function renderComparisonOptions() {
-  if (!elements.comparePlayerA || !elements.comparePlayerB) return;
-
-  const previousA = elements.comparePlayerA.value;
-  const previousB = elements.comparePlayerB.value;
-  const options = profiles.map((profile) => (
-    `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)}</option>`
-  )).join('');
-
-  elements.comparePlayerA.innerHTML = `<option value="">Spieler A</option>${options}`;
-  elements.comparePlayerB.innerHTML = `<option value="">Spieler B</option>${options}`;
-
-  if (profiles.some((profile) => profile.id === previousA)) elements.comparePlayerA.value = previousA;
-  if (profiles.some((profile) => profile.id === previousB)) elements.comparePlayerB.value = previousB;
-
-  renderPlayerComparison();
-}
-
-function renderPlayerComparison() {
-  if (!elements.playerComparison) return;
-
-  const profileA = profiles.find((profile) => profile.id === elements.comparePlayerA?.value);
-  const profileB = profiles.find((profile) => profile.id === elements.comparePlayerB?.value);
-
-  if (!profileA || !profileB || profileA.id === profileB.id) {
-    elements.playerComparison.className = 'empty-copy';
-    elements.playerComparison.textContent = 'Wähle zwei unterschiedliche Spieler.';
-    return;
-  }
-
-  const games = history.map((entry) => ({
-    entry,
-    playerA: findHistoryPlayer(entry, profileA),
-    playerB: findHistoryPlayer(entry, profileB),
-  })).filter(({ playerA, playerB }) => playerA && playerB);
-
-  const aAhead = games.filter(({ playerA, playerB }) => Number(playerA.placement) < Number(playerB.placement)).length;
-  const bAhead = games.filter(({ playerA, playerB }) => Number(playerB.placement) < Number(playerA.placement)).length;
-  const ties = games.length - aAhead - bAhead;
-
-  const placementAverage = (key) => {
-    const values = games.map((gameEntry) => Number(gameEntry[key].placement))
-      .filter((value) => Number.isFinite(value) && value > 0);
-    return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
-  };
-
-  const combinedMpr = (key) => {
-    const totalMarks = games.reduce((sum, gameEntry) => sum + (Number(gameEntry[key].totalMarks) || 0), 0);
-    const totalDarts = games.reduce((sum, gameEntry) => sum + (Number(gameEntry[key].dartsThrown) || 0), 0);
-    return totalDarts > 0 ? (totalMarks / totalDarts) * 3 : null;
-  };
-
-  const wins = (key) => games.filter((gameEntry) => Number(gameEntry[key].placement) === 1).length;
-
-  const aPlace = placementAverage('playerA');
-  const bPlace = placementAverage('playerB');
-  const aMpr = combinedMpr('playerA');
-  const bMpr = combinedMpr('playerB');
-
-  elements.playerComparison.className = 'comparison-result';
-  elements.playerComparison.innerHTML = `
-    <div class="comparison-scoreboard">
-      <div class="comparison-player">
-        <div class="comparison-player-name">${escapeHtml(profileA.name)}</div>
-        <div class="comparison-wins">${aAhead}</div>
-      </div>
-      <div class="comparison-middle">
-        VOR DEM ANDEREN
-        <strong>${aAhead}:${bAhead}</strong>
-      </div>
-      <div class="comparison-player">
-        <div class="comparison-player-name">${escapeHtml(profileB.name)}</div>
-        <div class="comparison-wins">${bAhead}</div>
-      </div>
-    </div>
-
-    <div class="comparison-columns">
-      <div class="comparison-column">
-        <div class="comparison-column-title">${escapeHtml(profileA.name)}</div>
-        <div class="comparison-stat"><span>Ø Platz</span><strong>${aPlace === null ? '–' : formatNumber(aPlace)}</strong></div>
-        <div class="comparison-stat"><span>MPR gesamt</span><strong>${aMpr === null ? '–' : formatNumber(aMpr)}</strong></div>
-        <div class="comparison-stat"><span>Siege</span><strong>${wins('playerA')}</strong></div>
-        <div class="comparison-stat"><span>Vor ${escapeHtml(profileB.name)}</span><strong>${aAhead}×</strong></div>
-      </div>
-
-      <div class="comparison-column">
-        <div class="comparison-column-title">${escapeHtml(profileB.name)}</div>
-        <div class="comparison-stat"><span>Ø Platz</span><strong>${bPlace === null ? '–' : formatNumber(bPlace)}</strong></div>
-        <div class="comparison-stat"><span>MPR gesamt</span><strong>${bMpr === null ? '–' : formatNumber(bMpr)}</strong></div>
-        <div class="comparison-stat"><span>Siege</span><strong>${wins('playerB')}</strong></div>
-        <div class="comparison-stat"><span>Vor ${escapeHtml(profileA.name)}</span><strong>${bAhead}×</strong></div>
-      </div>
-    </div>
-
-    <div class="comparison-footer">
-      ${games.length} gemeinsame abgeschlossene Spiele${ties ? ` · ${ties} Gleichstand${ties === 1 ? '' : 'e'}` : ''}
-    </div>
-  `;
-}
-
 function renderProfiles() {
   if (!profiles.length) {
     elements.savedPlayers.innerHTML = '<div class="empty-copy">Noch keine gespeicherten Spieler.</div>';
     renderStatsPlayerOptions();
-    renderComparisonOptions();
     return;
   }
 
@@ -605,7 +592,6 @@ function renderProfiles() {
     </div>
   `).join('');
   renderStatsPlayerOptions();
-  renderComparisonOptions();
 }
 
 function renderLineup() {
@@ -638,9 +624,10 @@ function renderLineup() {
   renderProfiles();
 }
 
-function createProfile(event) {
+async function createProfile(event) {
   event.preventDefault();
   const name = elements.playerNameInput.value.trim().replace(/\s+/g, ' ').slice(0, 24);
+
   if (!name) {
     setSetupMessage('Bitte einen Namen eingeben.');
     return;
@@ -651,15 +638,18 @@ function createProfile(event) {
     return;
   }
 
-  const profile = { id: uid('human'), name, createdAt: Date.now() };
-  profiles.push(profile);
-  saveJson(PROFILE_KEY, profiles);
-  elements.playerNameInput.value = '';
-  setSetupMessage('');
+  try {
+    await createSharedPlayer(name);
+    const profile = profiles.find((entry) => entry.name.toLocaleLowerCase('de') === name.toLocaleLowerCase('de'))
+      || profileFromSharedName(name);
 
-  if (canAddParticipant()) lineup.push(participantFromProfile(profile));
-  renderProfiles();
-  renderLineup();
+    if (!isProfileSelected(profile.id)) lineup.push(participantFromProfile(profile));
+    elements.playerNameInput.value = '';
+    setSetupMessage('');
+    renderLineup();
+  } catch (error) {
+    setSetupMessage(`Spieler konnte nicht gespeichert werden (${error.message}).`);
+  }
 }
 
 function addProfile(profileId) {
@@ -671,15 +661,17 @@ function addProfile(profileId) {
   renderLineup();
 }
 
-function deleteProfile(profileId) {
+async function deleteProfile(profileId) {
   const profile = profiles.find((entry) => entry.id === profileId);
   if (!profile) return;
-  if (!window.confirm(`Spieler „${profile.name}“ wirklich löschen?`)) return;
-  profiles = profiles.filter((entry) => entry.id !== profileId);
-  lineup = lineup.filter((participant) => participant.profileId !== profileId);
-  saveJson(PROFILE_KEY, profiles);
-  renderProfiles();
-  renderLineup();
+  if (!window.confirm(`Spieler „${profile.name}“ wirklich für alle löschen? Alte Spiele und Statistiken bleiben erhalten.`)) return;
+
+  try {
+    await deleteSharedPlayer(profile.name);
+    setSetupMessage('');
+  } catch (error) {
+    setSetupMessage(`Spieler konnte nicht gelöscht werden (${error.message}).`);
+  }
 }
 
 function addBot() {
@@ -1822,7 +1814,7 @@ function initEvents() {
     const addButton = event.target.closest('[data-add-profile]');
     if (addButton) addProfile(addButton.dataset.addProfile);
     const deleteButton = event.target.closest('[data-delete-profile]');
-    if (deleteButton) deleteProfile(deleteButton.dataset.deleteProfile);
+    if (deleteButton) void deleteProfile(deleteButton.dataset.deleteProfile);
   });
   elements.selectedLineup.addEventListener('click', (event) => {
     const button = event.target.closest('[data-remove-seat]');
@@ -1833,10 +1825,7 @@ function initEvents() {
   elements.selectedLineup.addEventListener('pointerup', endLineupDrag);
   elements.selectedLineup.addEventListener('pointercancel', endLineupDrag);
   elements.addBotBtn.addEventListener('click', addBot);
-  elements.addAllBotsBtn?.addEventListener('click', addAllBots);
-  elements.comparePlayerA?.addEventListener('change', renderPlayerComparison);
-  elements.comparePlayerB?.addEventListener('change', renderPlayerComparison);
-  elements.statsPlayerSelect.addEventListener('change', renderSelectedPlayerStats);
+  elements.addAllBotsBtn?.addEventListener('click', addAllBots);  elements.statsPlayerSelect.addEventListener('change', renderSelectedPlayerStats);
   elements.startGameBtn.addEventListener('click', startGameFromLineup);
   elements.clearHistoryBtn.addEventListener('click', clearHistory);
   elements.onlineRefreshBtn?.addEventListener('click', () => void loadOnlineHistory());
@@ -1879,6 +1868,7 @@ function init() {
   renderOnlineStats();
   registerServiceWorker();
   void loadOnlineHistory({ quiet: true });
+  void loadSharedPlayers({ quiet: true });
 
   const active = loadActiveGame();
   if (active) {
@@ -1907,6 +1897,7 @@ window.addEventListener('pageshow', () => {
   renderHistory();
   renderOnlineStats();
   void loadOnlineHistory({ quiet: true });
+  void loadSharedPlayers({ quiet: true });
 });
 
 init();
