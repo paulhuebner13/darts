@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="icon.svg" />
   <link rel="stylesheet" href="cricket.css?v=20" />
   <link rel="stylesheet" href="mode-nav.css" />
-  <link rel="stylesheet" href="cricket-addons.css?v=32" />
+  <link rel="stylesheet" href="cricket-addons.css?v=34" />
   <title>Darts Cricket</title>
 </head>
 <body>
@@ -90,6 +90,16 @@
           <div id="playerComparison" class="empty-copy">Wähle zwei unterschiedliche Spieler.</div>
         </article>
 
+
+        <article class="setup-card online-stats-panel">
+          <div class="section-heading">
+            <h2>Online-Statistik</h2>
+            <span id="onlineStatus" class="online-status">nicht verbunden</span>
+          </div>
+          <div id="onlineStats" class="online-stats empty-copy">Supabase ist noch nicht eingerichtet.</div>
+          <button id="onlineRefreshBtn" class="quiet-button online-refresh-button" type="button">Online neu laden</button>
+        </article>
+
         <article id="historyPanel" class="setup-card history-panel">
           <div class="section-heading">
             <h2>Letzte Spiele</h2>
@@ -146,6 +156,21 @@
     </div>
   </dialog>
 
-  <script src="cricket.js?v=32"></script>
+
+  <dialog id="historyDetailDialog" class="winner-dialog history-detail-dialog">
+    <div class="winner-content history-detail-content">
+      <div class="history-detail-top">
+        <button id="historyPrevBtn" class="quiet-button" type="button">← Vorheriges</button>
+        <button id="historyNextBtn" class="quiet-button" type="button">Nächstes →</button>
+      </div>
+      <h2 id="historyDetailTitle">Spiel</h2>
+      <p id="historyDetailMeta" class="history-detail-meta"></p>
+      <div id="historyDetailRanking" class="history-detail-ranking"></div>
+      <button id="historyDetailCloseBtn" class="outline-button" type="button">Schließen</button>
+    </div>
+  </dialog>
+
+  <script src="supabase-config.js?v=34"></script>
+  <script src="cricket.js?v=34"></script>
 </body>
 </html>

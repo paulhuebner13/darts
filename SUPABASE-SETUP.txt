@@ -1,0 +1,26 @@
+SUPABASE EINRICHTUNG
+
+1. Neues Supabase-Projekt anlegen.
+2. SQL Editor öffnen.
+3. supabase-setup.sql vollständig ausführen.
+4. Project URL und anon/public key kopieren.
+5. In supabase-config.js eintragen.
+6. Alles auf GitHub pushen.
+
+Danach:
+- gemeinsame Online-History
+- gemeinsame Online-Statistik
+- neue Cricket-Spiele werden lokal + online gespeichert
+
+Startdaten:
+18 gemeinsame Spiele
+Paul vor Lukas: 4
+Lukas vor Paul: 14
+Paul Siege: 0
+Lukas Siege: 1
+Paul zweite Plätze: 2
+Lukas zweite Plätze: 0
+Paul Ø Platz: 4,94
+Lukas Ø Platz: 3,56
+Paul MPR: 1,36
+Lukas MPR: 1,71

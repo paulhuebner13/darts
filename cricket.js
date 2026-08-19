@@ -105,6 +105,16 @@ const elements = {
   winnerSetupBtn: document.getElementById('winnerSetupBtn'),
   themeToggle: document.getElementById('themeToggle'),
   gameThemeToggle: document.getElementById('gameThemeToggle'),
+  historyDetailDialog: document.getElementById('historyDetailDialog'),
+  historyDetailTitle: document.getElementById('historyDetailTitle'),
+  historyDetailMeta: document.getElementById('historyDetailMeta'),
+  historyDetailRanking: document.getElementById('historyDetailRanking'),
+  historyPrevBtn: document.getElementById('historyPrevBtn'),
+  historyNextBtn: document.getElementById('historyNextBtn'),
+  historyDetailCloseBtn: document.getElementById('historyDetailCloseBtn'),
+  onlineStatus: document.getElementById('onlineStatus'),
+  onlineStats: document.getElementById('onlineStats'),
+  onlineRefreshBtn: document.getElementById('onlineRefreshBtn'),
 };
 
 let profiles = loadJson(PROFILE_KEY, []);
@@ -116,6 +126,10 @@ let botBusy = false;
 let botStartTimer = null;
 let botRunId = 0;
 let lineupDrag = null;
+let selectedHistoryIndex = null;
+let onlineConnected = false;
+let onlineLoading = false;
+let onlineHistory = [];
 
 
 function loadTheme() {
@@ -152,6 +166,89 @@ function saveJson(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+
+function supabaseConfig() {
+  const config = globalThis.DARTS_SUPABASE || {};
+  return { url: String(config.url || '').replace(/\/+$/, ''), anonKey: String(config.anonKey || '') };
+}
+function supabaseEnabled() { const c=supabaseConfig(); return Boolean(c.url && c.anonKey); }
+function supabaseHeaders(extra={}) {
+  const c=supabaseConfig();
+  return { apikey:c.anonKey, Authorization:`Bearer ${c.anonKey}`, 'Content-Type':'application/json', ...extra };
+}
+function fromOnlineRow(row) {
+  return { id:row.id, startedAt:Date.parse(row.started_at)||Date.now(), finishedAt:Date.parse(row.finished_at)||Date.now(),
+    rounds:Math.max(1,Number(row.rounds)||1), winnerName:String(row.winner_name||''), players:Array.isArray(row.players)?row.players:[] };
+}
+function mergeHistoryRecords(primary,secondary) {
+  const byId=new Map();
+  [...secondary,...primary].forEach(e=>{if(e?.id)byId.set(e.id,e)});
+  return [...byId.values()].sort((a,b)=>Number(a.finishedAt)-Number(b.finishedAt));
+}
+async function loadOnlineHistory({quiet=false}={}) {
+  if(!supabaseEnabled()){
+    onlineConnected=false;
+    if(elements.onlineStatus)elements.onlineStatus.textContent='nicht eingerichtet';
+    if(elements.onlineStats){elements.onlineStats.className='online-stats empty-copy';elements.onlineStats.textContent='Project URL und anon key in supabase-config.js eintragen.'}
+    return false;
+  }
+  if(onlineLoading)return false;
+  onlineLoading=true;
+  if(elements.onlineStatus)elements.onlineStatus.textContent='lädt …';
+  try{
+    const c=supabaseConfig();
+    const r=await fetch(`${c.url}/rest/v1/cricket_games?select=id,started_at,finished_at,rounds,winner_name,players&order=finished_at.asc`,{headers:supabaseHeaders()});
+    if(!r.ok)throw new Error(`HTTP ${r.status}`);
+    const rows=await r.json();
+    onlineHistory=Array.isArray(rows)?rows.map(fromOnlineRow):[];
+    onlineConnected=true;
+    const localHistory=sanitizeHistory(loadJson(HISTORY_KEY,[]));
+    history=sanitizeHistory(mergeHistoryRecords(onlineHistory,localHistory));
+    if(elements.onlineStatus)elements.onlineStatus.textContent='online';
+    renderHistory();renderProfiles();renderOnlineStats();
+    return true;
+  }catch(error){
+    onlineConnected=false;
+    if(elements.onlineStatus)elements.onlineStatus.textContent='offline';
+    if(!quiet&&elements.onlineStats){elements.onlineStats.className='online-stats empty-copy';elements.onlineStats.textContent=`Online-Daten konnten nicht geladen werden (${error.message}).`}
+    return false;
+  }finally{onlineLoading=false}
+}
+async function saveGameOnline(record){
+  if(!supabaseEnabled())return false;
+  try{
+    const c=supabaseConfig();
+    const payload={id:record.id,started_at:new Date(record.startedAt).toISOString(),finished_at:new Date(record.finishedAt).toISOString(),
+      rounds:record.rounds,winner_name:record.winnerName,players:record.players};
+    const r=await fetch(`${c.url}/rest/v1/cricket_games`,{method:'POST',headers:supabaseHeaders({Prefer:'resolution=ignore-duplicates,return=minimal'}),body:JSON.stringify(payload)});
+    if(!r.ok)throw new Error(`HTTP ${r.status}`);
+    await loadOnlineHistory({quiet:true});
+    return true;
+  }catch{if(elements.onlineStatus)elements.onlineStatus.textContent='Sync fehlgeschlagen';return false}
+}
+function onlinePlayerByName(entry,name){
+  return entry.players.find(p=>String(p?.name||'').toLocaleLowerCase('de')===String(name).toLocaleLowerCase('de'));
+}
+function calculateOnlinePlayerStats(name){
+  const games=history.map(entry=>({entry,player:onlinePlayerByName(entry,name)})).filter(({player})=>player);
+  const placements=games.map(({player})=>Number(player.placement)).filter(v=>Number.isFinite(v)&&v>0);
+  const wins=games.filter(({player})=>Number(player.placement)===1).length;
+  const totalMarks=games.reduce((s,{player})=>s+(Number(player.totalMarks)||0),0);
+  const totalDarts=games.reduce((s,{player})=>s+(Number(player.dartsThrown)||0),0);
+  return {count:games.length,wins,averagePlacement:placements.length?placements.reduce((a,b)=>a+b,0)/placements.length:null,
+    mpr:totalDarts>0?(totalMarks/totalDarts)*3:null};
+}
+function renderOnlineStats(){
+  if(!elements.onlineStats)return;
+  const paul=calculateOnlinePlayerStats('Paul'),lukas=calculateOnlinePlayerStats('Lukas');
+  const common=history.map(entry=>({paul:onlinePlayerByName(entry,'Paul'),lukas:onlinePlayerByName(entry,'Lukas')})).filter(x=>x.paul&&x.lukas);
+  const paulAhead=common.filter(x=>Number(x.paul.placement)<Number(x.lukas.placement)).length;
+  const lukasAhead=common.filter(x=>Number(x.lukas.placement)<Number(x.paul.placement)).length;
+  if(!paul.count&&!lukas.count){elements.onlineStats.className='online-stats empty-copy';elements.onlineStats.textContent='Noch keine gemeinsamen Online-Spiele vorhanden.';return}
+  elements.onlineStats.className='online-stats';
+  elements.onlineStats.innerHTML=`<div class="online-headtohead"><div><span>Paul vorne</span><strong>${paulAhead}</strong></div><div class="online-vs"><span>gemeinsam</span><strong>${common.length}</strong></div><div><span>Lukas vorne</span><strong>${lukasAhead}</strong></div></div><div class="online-player-columns"><div class="online-player-column"><strong>Paul</strong><span>${paul.count} Spiele</span><span>${paul.wins} Siege</span><span>Ø Platz ${paul.averagePlacement===null?'–':formatNumber(paul.averagePlacement)}</span><span>MPR ${paul.mpr===null?'–':formatNumber(paul.mpr)}</span></div><div class="online-player-column"><strong>Lukas</strong><span>${lukas.count} Spiele</span><span>${lukas.wins} Siege</span><span>Ø Platz ${lukas.averagePlacement===null?'–':formatNumber(lukas.averagePlacement)}</span><span>MPR ${lukas.mpr===null?'–':formatNumber(lukas.mpr)}</span></div></div>`;
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll('&', '&amp;')
@@ -168,6 +265,20 @@ function deepClone(value) {
 function emptyMarks() {
   return Object.fromEntries(CRICKET_TARGETS.map((target) => [target, 0]));
 }
+
+function emptyHitCounts() {
+  return Object.fromEntries(['Miss', '15', '16', '17', '18', '19', '20', 'Bull'].map((target) => [target, 0]));
+}
+
+function normalizeHitCounts(raw) {
+  const counts = emptyHitCounts();
+  if (!raw || typeof raw !== 'object') return counts;
+  Object.keys(counts).forEach((target) => {
+    counts[target] = Math.max(0, Number(raw[target]) || 0);
+  });
+  return counts;
+}
+
 
 function sanitizeProfiles(raw) {
   if (!Array.isArray(raw)) return [];
@@ -264,6 +375,47 @@ function findHistoryPlayer(entry, profile) {
   ));
 }
 
+function aggregateHitDistribution(games) {
+  const totals = emptyHitCounts();
+  let detailedDarts = 0;
+
+  games.forEach(({ player }) => {
+    if (!player?.hitCounts || typeof player.hitCounts !== 'object') return;
+    const counts = normalizeHitCounts(player.hitCounts);
+    Object.keys(totals).forEach((target) => {
+      totals[target] += counts[target];
+      detailedDarts += counts[target];
+    });
+  });
+
+  return { totals, detailedDarts };
+}
+
+function renderHitDistribution(games) {
+  const { totals, detailedDarts } = aggregateHitDistribution(games);
+  if (!detailedDarts) {
+    return `<div class="hit-distribution-empty">Trefferverteilung ist für ältere Spiele noch nicht verfügbar. Neue Spiele werden ab jetzt detailliert gespeichert.</div>`;
+  }
+
+  const order = ['Miss', '15', '16', '17', '18', '19', '20', 'Bull'];
+  return `
+    <div class="hit-distribution">
+      <div class="hit-distribution-title">Wurfverteilung</div>
+      <div class="hit-distribution-grid">
+        ${order.map((target) => {
+          const count = totals[target];
+          const pct = (count / detailedDarts) * 100;
+          return `<div class="hit-distribution-row">
+            <span>${escapeHtml(target)}</span>
+            <div class="hit-distribution-track"><div class="hit-distribution-fill" style="width:${Math.max(0, Math.min(100, pct))}%"></div></div>
+            <strong>${formatNumber(pct, 1)} %</strong>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="hit-distribution-total">${detailedDarts} detailliert gespeicherte Würfe</div>
+    </div>`;
+}
+
 function renderSelectedPlayerStats() {
   if (!profiles.length) {
     elements.statsPlayerSelect.innerHTML = '';
@@ -318,6 +470,7 @@ function renderSelectedPlayerStats() {
       <div class="player-stat-tile"><span>MPR gesamt</span><strong>${overallMpr === null ? '–' : formatNumber(overallMpr)}</strong></div>
       <div class="player-stat-tile"><span>Beste MPR</span><strong>${bestMpr === null ? '–' : formatNumber(bestMpr)}</strong></div>
     </div>
+    ${renderHitDistribution(games)}
     <div class="player-stat-games">${recentRows}</div>
   `;
 }
@@ -558,6 +711,7 @@ function buildGamePlayers(participants) {
     marks: emptyMarks(),
     totalMarks: 0,
     dartsThrown: 0,
+    hitCounts: emptyHitCounts(),
     turnThrows: [],
     botFocusTarget: null,
   }));
@@ -621,6 +775,7 @@ function loadActiveGame() {
     player.placement = Number.isInteger(placement) && placement > 0 ? placement : null;
     player.totalMarks = Math.max(0, Number(player.totalMarks) || 0);
     player.dartsThrown = Math.max(0, Number(player.dartsThrown) || 0);
+    player.hitCounts = normalizeHitCounts(player.hitCounts);
     player.turnThrows = Array.isArray(player.turnThrows)
       ? player.turnThrows.slice(0, 3)
       : (Array.isArray(player.lastThrows) ? player.lastThrows.slice(-3) : []);
@@ -809,6 +964,9 @@ function recordDart(dart, source = 'human') {
   const rawMarks = rawMarksForDart(dart);
   player.totalMarks = Math.max(0, Number(player.totalMarks) || 0) + rawMarks;
   player.dartsThrown = Math.max(0, Number(player.dartsThrown) || 0) + 1;
+  player.hitCounts = normalizeHitCounts(player.hitCounts);
+  const hitCategory = dart && CRICKET_TARGETS.includes(dart.target) ? dart.target : 'Miss';
+  player.hitCounts[hitCategory] += 1;
   const result = applyDartToPlayer(playerIndex, dart);
   const recordedDart = {
     ...dart,
@@ -942,24 +1100,29 @@ function calculateCricketLeadProgress() {
 function calculateCricketLeadLabels() {
   const progress = calculateCricketLeadProgress();
   const activeProgress = progress.filter((value) => Number.isFinite(value));
-  if (!activeProgress.length) return game.players.map(() => '');
+  if (!activeProgress.length) return game.players.map(() => ({ text: '', leader: false }));
 
-  const sorted = [...activeProgress].sort((a, b) => b - a);
-  const leaderProgress = sorted[0];
-  const secondProgress = sorted.length > 1 ? sorted[1] : leaderProgress;
-  const leaderCount = activeProgress.filter((value) => Math.abs(value - leaderProgress) < 1e-9).length;
+  const leaderProgress = Math.max(...activeProgress);
+  const leaders = progress
+    .map((value, index) => Number.isFinite(value) && Math.abs(value - leaderProgress) < 1e-9 ? index : -1)
+    .filter((index) => index >= 0);
 
-  return progress.map((value) => {
-    if (!Number.isFinite(value)) return '';
+  const sortedBehind = activeProgress
+    .filter((value) => value < leaderProgress - 1e-9)
+    .sort((a, b) => b - a);
+  const nextBest = sortedBehind.length ? sortedBehind[0] : leaderProgress;
 
-    if (Math.abs(value - leaderProgress) < 1e-9) {
-      if (leaderCount > 1) return '±0 Würfe';
-      const lead = Math.max(0, Math.ceil((leaderProgress - secondProgress) - 1e-9));
-      return lead > 0 ? `+${lead} Würfe` : '±0 Würfe';
+  return progress.map((value, index) => {
+    if (!Number.isFinite(value)) return { text: '', leader: false };
+
+    if (leaders.includes(index)) {
+      if (leaders.length > 1) return { text: 'Führung ±0', leader: true };
+      const lead = Math.max(0, Math.ceil((leaderProgress - nextBest) - 1e-9));
+      return { text: `Führung +${lead}`, leader: true };
     }
 
-    const behind = Math.max(0, Math.ceil((leaderProgress - value) - 1e-9));
-    return `−${behind} Würfe`;
+    const needed = Math.max(1, Math.ceil((leaderProgress - value) - 1e-9));
+    return { text: `+${needed} Würfe`, leader: false };
   });
 }
 
@@ -977,7 +1140,7 @@ function renderScoreboard() {
       <th class="player-head ${index === game.currentPlayerIndex && !game.pausedForPlacement ? 'active-player' : ''} ${placed ? 'placed-player' : ''}" data-player-index="${index}">
         ${rank}
         <span class="head-name">${escapeHtml(player.name)}</span>
-        ${!placed ? `<span class="head-lead ${leadLabels[index]?.startsWith('+') ? 'leading' : ''}">${escapeHtml(leadLabels[index] || '±0 Würfe')}</span>` : ''}
+        ${!placed ? `<span class="head-lead ${leadLabels[index]?.leader ? 'leading' : ''}">${escapeHtml(leadLabels[index]?.text || '')}</span>` : ''}
         <span class="head-darts">${dartCount} Darts</span>
         <span class="head-mpr">MPR ${mpr}</span>
         <span class="head-score">${player.score}</span>
@@ -1407,6 +1570,7 @@ function saveCompletedRanking() {
       placement: player.placement,
       totalMarks: Math.max(0, Number(player.totalMarks) || 0),
       dartsThrown: Math.max(0, Number(player.dartsThrown) || 0),
+      hitCounts: normalizeHitCounts(player.hitCounts),
       mpr: calculateMpr(player),
     })),
   };
@@ -1415,6 +1579,8 @@ function saveCompletedRanking() {
   saveJson(HISTORY_KEY, history);
   localStorage.removeItem(ACTIVE_GAME_KEY);
   renderHistory();
+  renderOnlineStats();
+  void saveGameOnline(record);
 }
 
 function assignPlacement(playerIndex, place) {
@@ -1543,11 +1709,49 @@ function renderHistory() {
   }
 
   elements.cricketHistory.className = 'cricket-history';
-  elements.cricketHistory.innerHTML = [...history].reverse().slice(0, 8).map((entry) => {
+  elements.cricketHistory.innerHTML = [...history].reverse().map((entry) => {
     const date = new Intl.DateTimeFormat('de-AT', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(entry.finishedAt));
     const names = entry.players.map((player) => player.name).join(', ');
-    return `<div class="history-row"><div><div class="history-winner">${escapeHtml(entry.winnerName)} gewinnt</div><div class="lineup-meta">${escapeHtml(names)}</div></div><div class="history-meta">${escapeHtml(date)}<br>${Number(entry.rounds) || 1} Runden</div></div>`;
+    return `<button class="history-row history-row-button" type="button" data-history-id="${escapeHtml(entry.id)}">
+      <div>
+        <div class="history-winner">${escapeHtml(entry.winnerName)} gewinnt</div>
+        <div class="lineup-meta">${escapeHtml(names)}</div>
+      </div>
+      <div class="history-meta">${escapeHtml(date)}<br>${Number(entry.rounds) || 1} Runden</div>
+    </button>`;
   }).join('');
+}
+
+function openHistoryDetailByIndex(index) {
+  if (!history.length || !elements.historyDetailDialog) return;
+  selectedHistoryIndex = Math.max(0, Math.min(history.length - 1, index));
+  const entry = history[selectedHistoryIndex];
+  const date = new Intl.DateTimeFormat('de-AT', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(entry.finishedAt));
+
+  elements.historyDetailTitle.textContent = `${entry.winnerName} gewinnt`;
+  elements.historyDetailMeta.textContent = `${date} · ${Number(entry.rounds) || 1} Runden`;
+  elements.historyDetailRanking.innerHTML = [...entry.players]
+    .sort((a, b) => Number(a.placement) - Number(b.placement))
+    .map((player) => `
+      <div class="history-detail-player">
+        <div class="history-detail-place">${Number(player.placement) || '–'}.</div>
+        <div class="history-detail-player-main">
+          <strong>${escapeHtml(player.name)}</strong>
+          <span>${Math.max(0, Number(player.dartsThrown) || 0)} Darts · MPR ${formatNumber(Number(player.mpr) || calculateMpr(player))}</span>
+        </div>
+        <div class="history-detail-score">${Math.max(0, Number(player.score) || 0)} P</div>
+      </div>
+    `).join('');
+
+  elements.historyPrevBtn.disabled = selectedHistoryIndex <= 0;
+  elements.historyNextBtn.disabled = selectedHistoryIndex >= history.length - 1;
+
+  if (!elements.historyDetailDialog.open) elements.historyDetailDialog.showModal();
+}
+
+function openHistoryDetailById(id) {
+  const index = history.findIndex((entry) => entry.id === id);
+  if (index >= 0) openHistoryDetailByIndex(index);
 }
 
 function clearHistory() {
@@ -1635,6 +1839,18 @@ function initEvents() {
   elements.statsPlayerSelect.addEventListener('change', renderSelectedPlayerStats);
   elements.startGameBtn.addEventListener('click', startGameFromLineup);
   elements.clearHistoryBtn.addEventListener('click', clearHistory);
+  elements.onlineRefreshBtn?.addEventListener('click', () => void loadOnlineHistory());
+  elements.cricketHistory.addEventListener('click', (event) => {
+    const row = event.target.closest('[data-history-id]');
+    if (row) openHistoryDetailById(row.dataset.historyId);
+  });
+  elements.historyPrevBtn?.addEventListener('click', () => {
+    if (selectedHistoryIndex !== null) openHistoryDetailByIndex(selectedHistoryIndex - 1);
+  });
+  elements.historyNextBtn?.addEventListener('click', () => {
+    if (selectedHistoryIndex !== null) openHistoryDetailByIndex(selectedHistoryIndex + 1);
+  });
+  elements.historyDetailCloseBtn?.addEventListener('click', () => elements.historyDetailDialog.close());
   elements.backToSetupBtn.addEventListener('click', leaveGameForSetup);
   elements.resetGameBtn.addEventListener('click', resetCurrentGame);
   elements.targetButtons.addEventListener('dblclick', (event) => event.preventDefault());
@@ -1660,7 +1876,9 @@ function init() {
   renderProfiles();
   renderLineup();
   renderHistory();
+  renderOnlineStats();
   registerServiceWorker();
+  void loadOnlineHistory({ quiet: true });
 
   const active = loadActiveGame();
   if (active) {
@@ -1687,6 +1905,8 @@ window.addEventListener('pageshow', () => {
   renderProfiles();
   renderLineup();
   renderHistory();
+  renderOnlineStats();
+  void loadOnlineHistory({ quiet: true });
 });
 
 init();
