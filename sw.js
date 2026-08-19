@@ -1,4 +1,4 @@
-const CACHE_NAME = 'darts-suite-v31';
+const CACHE_NAME = 'darts-suite-v32';
 const ASSETS = [
   './',
   './index.html',
@@ -7,8 +7,8 @@ const ASSETS = [
   './mode-nav.css',
   './cricket.html',
   './cricket.css',
-  './cricket-addons.css','./cricket-addons.css?v=29',
-  './cricket.js',
+  './cricket-addons.css','./cricket-addons.css?v=32',
+  './cricket.js','./cricket.js?v=32',
   './501.html',
   './501.css','./501.css?v=31',
   './501.js','./501.js?v=31',

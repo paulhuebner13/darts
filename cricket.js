@@ -897,7 +897,74 @@ function scrollActivePlayerIntoView() {
   elements.scoreboardWrap.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' });
 }
 
+
+function leadTargetWeight(target) {
+  return target === 'Bull' ? 4 : 1;
+}
+
+function calculateCricketLeadProgress() {
+  const activeIndices = getActivePlayerIndices();
+  if (!activeIndices.length) return game.players.map(() => null);
+
+  const relevantTargets = CRICKET_TARGETS.filter((target) => (
+    activeIndices.some((index) => Number(game.players[index].marks[target]) < 3)
+  ));
+
+  const currentlyScorableTargets = relevantTargets.filter((target) => {
+    const someClosed = activeIndices.some((index) => Number(game.players[index].marks[target]) >= 3);
+    const someOpen = activeIndices.some((index) => Number(game.players[index].marks[target]) < 3);
+    return someClosed && someOpen;
+  });
+
+  const conversionTargets = currentlyScorableTargets.length
+    ? currentlyScorableTargets
+    : relevantTargets;
+
+  const pointRate = conversionTargets.length
+    ? Math.max(...conversionTargets.map((target) => (
+        TARGET_VALUES[target] / leadTargetWeight(target)
+      )), 1)
+    : 20;
+
+  return game.players.map((player, index) => {
+    if (!activeIndices.includes(index)) return null;
+
+    const markProgress = relevantTargets.reduce((sum, target) => {
+      const marks = Math.max(0, Math.min(3, Number(player.marks[target]) || 0));
+      return sum + (marks * leadTargetWeight(target));
+    }, 0);
+
+    const pointProgress = Math.max(0, Number(player.score) || 0) / pointRate;
+    return markProgress + pointProgress;
+  });
+}
+
+function calculateCricketLeadLabels() {
+  const progress = calculateCricketLeadProgress();
+  const activeProgress = progress.filter((value) => Number.isFinite(value));
+  if (!activeProgress.length) return game.players.map(() => '');
+
+  const sorted = [...activeProgress].sort((a, b) => b - a);
+  const leaderProgress = sorted[0];
+  const secondProgress = sorted.length > 1 ? sorted[1] : leaderProgress;
+  const leaderCount = activeProgress.filter((value) => Math.abs(value - leaderProgress) < 1e-9).length;
+
+  return progress.map((value) => {
+    if (!Number.isFinite(value)) return '';
+
+    if (Math.abs(value - leaderProgress) < 1e-9) {
+      if (leaderCount > 1) return '±0 Würfe';
+      const lead = Math.max(0, Math.ceil((leaderProgress - secondProgress) - 1e-9));
+      return lead > 0 ? `+${lead} Würfe` : '±0 Würfe';
+    }
+
+    const behind = Math.max(0, Math.ceil((leaderProgress - value) - 1e-9));
+    return `−${behind} Würfe`;
+  });
+}
+
 function renderScoreboard() {
+  const leadLabels = calculateCricketLeadLabels();
   const headerCells = game.players.map((player, index) => {
     const placed = !isPlayerActive(player);
     const rank = placed ? `<span class="head-rank">${Number(player.placement)}.</span>` : '';
@@ -910,6 +977,7 @@ function renderScoreboard() {
       <th class="player-head ${index === game.currentPlayerIndex && !game.pausedForPlacement ? 'active-player' : ''} ${placed ? 'placed-player' : ''}" data-player-index="${index}">
         ${rank}
         <span class="head-name">${escapeHtml(player.name)}</span>
+        ${!placed ? `<span class="head-lead ${leadLabels[index]?.startsWith('+') ? 'leading' : ''}">${escapeHtml(leadLabels[index] || '±0 Würfe')}</span>` : ''}
         <span class="head-darts">${dartCount} Darts</span>
         <span class="head-mpr">MPR ${mpr}</span>
         <span class="head-score">${player.score}</span>

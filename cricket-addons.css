@@ -166,3 +166,19 @@ body.game-active .modifier-button{
   height:clamp(35px,5.45dvh,45px)!important;
   min-height:35px!important;
 }
+
+
+/* v32: live Cricket lead estimate below each active player's name */
+.head-lead{
+  display:block;
+  margin-top:1px;
+  color:var(--muted);
+  font-size:.58rem;
+  line-height:1.05;
+  font-weight:800;
+  white-space:nowrap;
+}
+.head-lead.leading{
+  color:var(--primary);
+  font-weight:900;
+}
