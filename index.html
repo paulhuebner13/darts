@@ -77,6 +77,13 @@
             <button id="newGameBtn" class="text-button danger-text" type="button">Neues Spiel starten</button>
           </div>
         </div>
+
+        <div class="atc-mode-picker" aria-label="Around-the-Clock Wertung">
+          <span>Wertung</span>
+          <button type="button" data-atc-mode="single" class="active">Single</button>
+          <button type="button" data-atc-mode="double">Double</button>
+          <button type="button" data-atc-mode="triple">Triple</button>
+        </div>
       </section>
 
       <section id="stats" class="view">
@@ -158,6 +165,14 @@
       <h2 id="detailTitle">Spiel</h2>
       <p id="detailMeta" class="muted"></p>
       <div id="detailBars" class="target-bars"></div>
+      <div class="detail-mode-editor">
+        <label for="detailModeSelect">Wertung</label>
+        <select id="detailModeSelect">
+          <option value="single">Single</option>
+          <option value="double">Double</option>
+          <option value="triple">Triple</option>
+        </select>
+      </div>
       <div class="button-row stacked detail-actions">
         <button id="deleteGameBtn" class="ghost-button danger" type="button">Dieses Spiel löschen</button>
         <button id="closeDetailDialogBtn" class="primary-button" type="button">Schließen</button>
@@ -165,6 +180,6 @@
     </div>
   </dialog>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=36"></script>
 </body>
 </html>

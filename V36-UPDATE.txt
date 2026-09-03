@@ -1,0 +1,18 @@
+V36 UPDATE
+
+WICHTIG:
+supabase-config.js ist absichtlich NICHT in diesem Update-ZIP.
+Deine bereits konfigurierte Datei mit Project URL + Publishable Key im Repo behalten.
+
+Around the Clock:
+- Single / Double / Triple getrennt
+- alte Spiele = Single
+- Modus unten im Spiel auswählbar
+- Statistik, Prognose, Verlauf, Charts und gespeicherte Spiele nach Modus getrennt
+- Modus eines gespeicherten Spiels im Detail nachträglich änderbar
+- rote Miss-Anzeige wieder aktiv
+
+Cricket:
+- Online-Sync läuft automatisch
+- kein Online/Offline/Neu-laden-UI mehr
+- Sync beim Start, Fokus/Zurückkehren und alle 10 Sekunden

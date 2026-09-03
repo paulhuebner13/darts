@@ -557,3 +557,70 @@ button, input, label { font: inherit; }
 .stats-note{margin:-4px 0 12px;font-size:.8rem}
 .throw-position-row .bar-fill{min-width:2px}
 @media(max-width:420px){.mode-pill{font-size:.75rem}.mode-topbar{gap:7px}.mode-topbar .icon-button{flex-basis:42px;width:42px;height:42px}}
+
+
+/* v36: missed darts flash red again */
+.throw-circle.miss-flash span{
+  background:var(--danger)!important;
+  border-color:var(--danger)!important;
+  color:#fff!important;
+  box-shadow:0 0 0 5px color-mix(in srgb,var(--danger) 18%,transparent)!important;
+}
+.throw-circle.miss-flash{
+  animation:atc-miss-pop .32s ease;
+}
+@keyframes atc-miss-pop{
+  0%{transform:scale(1)}
+  35%{transform:scale(1.045)}
+  100%{transform:scale(1)}
+}
+
+/* tiny Single / Double / Triple selector at bottom of play */
+.atc-mode-picker{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  margin:7px 0 2px;
+  color:var(--muted);
+  font-size:.62rem;
+}
+.atc-mode-picker>span{margin-right:2px}
+.atc-mode-picker button{
+  min-height:25px;
+  padding:2px 7px;
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:transparent;
+  color:var(--muted);
+  font-size:.61rem;
+  font-weight:800;
+}
+.atc-mode-picker button.active{
+  border-color:var(--primary);
+  background:color-mix(in srgb,var(--primary) 11%,var(--card));
+  color:var(--primary);
+}
+.detail-mode-editor{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
+  align-items:center;
+  gap:10px;
+  margin-top:14px;
+  padding-top:12px;
+  border-top:1px solid var(--border);
+}
+.detail-mode-editor label{
+  color:var(--muted);
+  font-size:.78rem;
+  font-weight:800;
+}
+.detail-mode-editor select{
+  width:100%;
+  min-height:38px;
+  padding:0 9px;
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:var(--card-2);
+  color:var(--text);
+}

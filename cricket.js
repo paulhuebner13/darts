@@ -1827,9 +1827,7 @@ function initEvents() {
   elements.addBotBtn.addEventListener('click', addBot);
   elements.addAllBotsBtn?.addEventListener('click', addAllBots);  elements.statsPlayerSelect.addEventListener('change', renderSelectedPlayerStats);
   elements.startGameBtn.addEventListener('click', startGameFromLineup);
-  elements.clearHistoryBtn.addEventListener('click', clearHistory);
-  elements.onlineRefreshBtn?.addEventListener('click', () => void loadOnlineHistory());
-  elements.cricketHistory.addEventListener('click', (event) => {
+  elements.clearHistoryBtn.addEventListener('click', clearHistory);  elements.cricketHistory.addEventListener('click', (event) => {
     const row = event.target.closest('[data-history-id]');
     if (row) openHistoryDetailById(row.dataset.historyId);
   });
@@ -1867,8 +1865,8 @@ function init() {
   renderHistory();
   renderOnlineStats();
   registerServiceWorker();
-  void loadOnlineHistory({ quiet: true });
-  void loadSharedPlayers({ quiet: true });
+  void syncOnlineEverything({ quiet: true });
+  startAutomaticOnlineSync();
 
   const active = loadActiveGame();
   if (active) {
@@ -1896,8 +1894,31 @@ window.addEventListener('pageshow', () => {
   renderLineup();
   renderHistory();
   renderOnlineStats();
-  void loadOnlineHistory({ quiet: true });
-  void loadSharedPlayers({ quiet: true });
+  void syncOnlineEverything({ quiet: true });
 });
 
 init();
+let onlineSyncTimer = null;
+
+async function syncOnlineEverything({ quiet = true } = {}) {
+  if (!supabaseEnabled()) return;
+  await loadOnlineHistory({ quiet });
+  await loadSharedPlayers({ quiet });
+}
+
+function startAutomaticOnlineSync() {
+  window.clearInterval(onlineSyncTimer);
+  onlineSyncTimer = window.setInterval(() => {
+    if (!document.hidden) void syncOnlineEverything({ quiet: true });
+  }, 10000);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) void syncOnlineEverything({ quiet: true });
+  });
+
+  window.addEventListener('focus', () => {
+    void syncOnlineEverything({ quiet: true });
+  });
+}
+
+

@@ -8,7 +8,9 @@ const STATS_WINDOW = 30;
 const PREVIEW_WINDOW = 30;
 const NEXT_TARGET_COUNT = 3;
 const MOVING_AVERAGE_WINDOW = 10;
-const FLASH_DURATION_MS = 220;
+const FLASH_DURATION_MS = 320;
+const ATC_MODE_KEY = 'darts-atc-mode-v1';
+const ATC_MODES = ['single','double','triple'];
 
 const elements = {
   currentTarget: document.getElementById('currentTarget'),
@@ -42,6 +44,8 @@ const elements = {
   detailBars: document.getElementById('detailBars'),
   deleteGameBtn: document.getElementById('deleteGameBtn'),
   closeDetailDialogBtn: document.getElementById('closeDetailDialogBtn'),
+  detailModeSelect: document.getElementById('detailModeSelect'),
+  atcModeButtons: Array.from(document.querySelectorAll('[data-atc-mode]')),
   themeToggle: document.getElementById('themeToggle'),
   tabs: Array.from(document.querySelectorAll('.tab')),
   views: Array.from(document.querySelectorAll('.view')),
@@ -59,6 +63,32 @@ let currentGame = createEmptyGame();
 let currentTab = 'play';
 let finishTimeoutId = null;
 let selectedGameId = null;
+let currentAtcMode = normalizeAtcMode(localStorage.getItem(ATC_MODE_KEY));
+
+function normalizeAtcMode(mode) {
+  return ATC_MODES.includes(mode) ? mode : 'single';
+}
+
+function atcModeLabel(mode) {
+  return ({single:'Single',double:'Double',triple:'Triple'})[normalizeAtcMode(mode)];
+}
+
+function gamesForMode(mode=currentAtcMode) {
+  const normalized=normalizeAtcMode(mode);
+  return appData.games.filter((game)=>normalizeAtcMode(game.mode)===normalized);
+}
+
+function setAtcMode(mode) {
+  currentAtcMode=normalizeAtcMode(mode);
+  localStorage.setItem(ATC_MODE_KEY,currentAtcMode);
+  currentGame.mode=currentAtcMode;
+  elements.atcModeButtons.forEach((button)=>{
+    button.classList.toggle('active',button.dataset.atcMode===currentAtcMode);
+  });
+  updateGameView();
+  if(currentTab==='stats')renderStats();
+  if(currentTab==='history')renderHistory();
+}
 
 function createEmptyGame() {
   return {
@@ -66,6 +96,7 @@ function createEmptyGame() {
     totalThrows: 0,
     throwsPerTarget: Object.fromEntries(TARGETS.map((target) => [target, 0])),
     actionLog: [],
+    mode: currentAtcMode,
   };
 }
 
@@ -89,6 +120,7 @@ function sanitizeGame(game) {
     id: typeof game.id === 'string' && game.id ? game.id : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     finishedAt: Number.isFinite(Number(game.finishedAt)) ? Number(game.finishedAt) : Date.now(),
     totalThrows,
+    mode: normalizeAtcMode(game.mode),
     throwsPerTarget: sanitizeThrowsPerTarget(game.throwsPerTarget),
   };
 }
@@ -131,7 +163,7 @@ function average(values) {
 }
 
 function getLastGames(limit) {
-  return appData.games.slice(-limit);
+  return gamesForMode().slice(-limit);
 }
 
 function formatDate(timestamp) {
@@ -164,6 +196,7 @@ function createUndoSnapshot(game) {
   return {
     currentIndex: game.currentIndex,
     totalThrows: game.totalThrows,
+    mode: normalizeAtcMode(game.mode),
     throwsPerTarget: { ...game.throwsPerTarget },
   };
 }
@@ -171,6 +204,10 @@ function createUndoSnapshot(game) {
 function restoreFromSnapshot(snapshot) {
   currentGame.currentIndex = snapshot.currentIndex;
   currentGame.totalThrows = snapshot.totalThrows;
+  currentGame.mode = normalizeAtcMode(snapshot.mode);
+  currentAtcMode = currentGame.mode;
+  localStorage.setItem(ATC_MODE_KEY,currentAtcMode);
+  elements.atcModeButtons.forEach((button)=>button.classList.toggle('active',button.dataset.atcMode===currentAtcMode));
   currentGame.throwsPerTarget = { ...snapshot.throwsPerTarget };
 }
 
@@ -244,12 +281,13 @@ function updateGameView() {
 }
 
 function flashMissedThrows(selectedHits) {
-  selectedHits.forEach((hit, index) => {
-    if (hit) return;
-    throwCircles[index].classList.add('miss-flash');
-    window.setTimeout(() => {
-      throwCircles[index].classList.remove('miss-flash');
-    }, FLASH_DURATION_MS);
+  selectedHits.forEach((hit,index)=>{
+    if(hit)return;
+    const circle=throwCircles[index];
+    circle.classList.remove('miss-flash');
+    void circle.offsetWidth;
+    circle.classList.add('miss-flash');
+    window.setTimeout(()=>circle.classList.remove('miss-flash'),FLASH_DURATION_MS);
   });
 }
 
@@ -259,6 +297,7 @@ function completeGame() {
   const gameRecord = {
     id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     finishedAt,
+    mode: normalizeAtcMode(currentGame.mode),
     totalThrows: currentGame.totalThrows,
     throwsPerTarget: { ...currentGame.throwsPerTarget },
   };
@@ -268,7 +307,7 @@ function completeGame() {
   renderStats();
   renderHistory();
 
-  elements.finishSummary.textContent = `Du hast ${currentGame.totalThrows} Würfe gebraucht.`;
+  elements.finishSummary.textContent = `${atcModeLabel(currentGame.mode)}: Du hast ${currentGame.totalThrows} Würfe gebraucht.`;
   if (typeof elements.finishDialog.showModal === 'function') {
     elements.finishDialog.showModal();
   } else {
@@ -412,7 +451,7 @@ function renderThrowPositionBars() {
 }
 
 function getLongestStreak() {
-  return appData.games.reduce((best, game) => {
+  return gamesForMode().reduce((best, game) => {
     let streak = 0;
     let gameBest = 0;
     TARGETS.forEach((target) => {
@@ -439,7 +478,7 @@ function buildMovingAverageSeries(games, windowSize) {
 }
 
 function renderMovingAverageChart() {
-  const games = appData.games;
+  const games = gamesForMode();
   if (!games.length) {
     elements.movingAverageChart.className = 'chart-box empty-state';
     elements.movingAverageChart.textContent = 'Noch keine abgeschlossenen Spiele vorhanden.';
@@ -494,7 +533,7 @@ function renderMovingAverageChart() {
 }
 
 function renderStats() {
-  const allGames = appData.games;
+  const allGames = gamesForMode();
   const statsGames = getLastGames(STATS_WINDOW);
   elements.gamesPlayed.textContent = String(allGames.length);
   elements.avgTotalThrows.textContent = statsGames.length ? average(statsGames.map((game) => game.totalThrows)).toFixed(1) : '0.0';
@@ -506,7 +545,7 @@ function renderStats() {
 }
 
 function renderHistory() {
-  const games = appData.games;
+  const games = gamesForMode();
   renderMovingAverageChart();
 
   const reversedGames = [...games].reverse();
@@ -553,13 +592,25 @@ function openGameDetail(gameId) {
   const game = appData.games.find((entry) => entry.id === gameId);
   if (!game) return;
   selectedGameId = gameId;
-  const gameIndex = appData.games.findIndex((entry) => entry.id === gameId) + 1;
+  const gameIndex = gamesForMode(game.mode).findIndex((entry) => entry.id === gameId) + 1;
   elements.detailTitle.textContent = `Spiel ${gameIndex}`;
-  elements.detailMeta.textContent = `${formatDate(game.finishedAt)} • ${game.totalThrows} Würfe gesamt`;
+  elements.detailMeta.textContent = `${formatDate(game.finishedAt)} • ${game.totalThrows} Würfe gesamt • ${atcModeLabel(game.mode)}`;
+  elements.detailModeSelect.value = normalizeAtcMode(game.mode);
   renderDetailBars(game);
   if (typeof elements.gameDetailDialog.showModal === 'function') {
     elements.gameDetailDialog.showModal();
   }
+}
+
+function changeSelectedGameMode() {
+  if(!selectedGameId)return;
+  const game=appData.games.find((entry)=>entry.id===selectedGameId);
+  if(!game)return;
+  game.mode=normalizeAtcMode(elements.detailModeSelect.value);
+  saveData();
+  renderStats();
+  renderHistory();
+  elements.detailMeta.textContent=`${formatDate(game.finishedAt)} • ${game.totalThrows} Würfe gesamt • ${atcModeLabel(game.mode)}`;
 }
 
 function deleteSelectedGame() {
@@ -635,6 +686,10 @@ function initEvents() {
   elements.closeDialogBtn.addEventListener('click', () => elements.finishDialog.close());
   elements.closeDetailDialogBtn.addEventListener('click', () => elements.gameDetailDialog.close());
   elements.deleteGameBtn.addEventListener('click', deleteSelectedGame);
+  elements.detailModeSelect.addEventListener('change', changeSelectedGameMode);
+  elements.atcModeButtons.forEach((button)=>{
+    button.addEventListener('click',()=>setAtcMode(button.dataset.atcMode));
+  });
   elements.themeToggle.addEventListener('click', () => {
     const newTheme = document.body.classList.contains('dark') ? 'light' : 'dark';
     applyTheme(newTheme);
@@ -685,7 +740,9 @@ function initEvents() {
 
 function init() {
   applyTheme(loadTheme());
-  initEvents();
+  elements.atcModeButtons.forEach((button)=>button.classList.toggle('active',button.dataset.atcMode===currentAtcMode));
+currentGame.mode=currentAtcMode;
+initEvents();
   renderStats();
   renderHistory();
   updateGameView();
