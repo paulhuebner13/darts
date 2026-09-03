@@ -59,11 +59,11 @@ const throwCircles = [
 ];
 
 let appData = loadData();
+let currentAtcMode = normalizeAtcMode(localStorage.getItem(ATC_MODE_KEY));
 let currentGame = createEmptyGame();
 let currentTab = 'play';
 let finishTimeoutId = null;
 let selectedGameId = null;
-let currentAtcMode = normalizeAtcMode(localStorage.getItem(ATC_MODE_KEY));
 
 function normalizeAtcMode(mode) {
   return ATC_MODES.includes(mode) ? mode : 'single';
@@ -79,15 +79,17 @@ function gamesForMode(mode=currentAtcMode) {
 }
 
 function setAtcMode(mode) {
-  currentAtcMode=normalizeAtcMode(mode);
-  localStorage.setItem(ATC_MODE_KEY,currentAtcMode);
-  currentGame.mode=currentAtcMode;
-  elements.atcModeButtons.forEach((button)=>{
-    button.classList.toggle('active',button.dataset.atcMode===currentAtcMode);
+  currentAtcMode = normalizeAtcMode(mode);
+  localStorage.setItem(ATC_MODE_KEY, currentAtcMode);
+  currentGame.mode = currentAtcMode;
+
+  elements.atcModeButtons.forEach((button) => {
+    button.classList.toggle('active', button.dataset.atcMode === currentAtcMode);
   });
+
   updateGameView();
-  if(currentTab==='stats')renderStats();
-  if(currentTab==='history')renderHistory();
+  renderStats();
+  renderHistory();
 }
 
 function createEmptyGame() {
@@ -686,7 +688,7 @@ function initEvents() {
   elements.closeDialogBtn.addEventListener('click', () => elements.finishDialog.close());
   elements.closeDetailDialogBtn.addEventListener('click', () => elements.gameDetailDialog.close());
   elements.deleteGameBtn.addEventListener('click', deleteSelectedGame);
-  elements.detailModeSelect.addEventListener('change', changeSelectedGameMode);
+  elements.detailModeSelect?.addEventListener('change', changeSelectedGameMode);
   elements.atcModeButtons.forEach((button)=>{
     button.addEventListener('click',()=>setAtcMode(button.dataset.atcMode));
   });
@@ -740,9 +742,11 @@ function initEvents() {
 
 function init() {
   applyTheme(loadTheme());
-  elements.atcModeButtons.forEach((button)=>button.classList.toggle('active',button.dataset.atcMode===currentAtcMode));
-currentGame.mode=currentAtcMode;
-initEvents();
+  elements.atcModeButtons.forEach((button) => {
+    button.classList.toggle('active', button.dataset.atcMode === currentAtcMode);
+  });
+  currentGame.mode = currentAtcMode;
+  initEvents();
   renderStats();
   renderHistory();
   updateGameView();

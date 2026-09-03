@@ -1,4 +1,4 @@
-const CACHE_NAME = 'darts-suite-v36';
+const CACHE_NAME = 'darts-suite-v37';
 const ASSETS = [
   './',
   './index.html',

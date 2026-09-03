@@ -624,3 +624,40 @@ button, input, label { font: inherit; }
   background:var(--card-2);
   color:var(--text);
 }
+
+
+/* v37: compact, integrated Around-the-Clock mode switch */
+.atc-mode-picker{
+  width:max-content;
+  max-width:100%;
+  margin:8px auto 0!important;
+  padding:2px!important;
+  gap:2px!important;
+  border:1px solid var(--border);
+  border-radius:9px;
+  background:var(--card);
+  box-shadow:none;
+}
+.atc-mode-picker>span{
+  display:none!important;
+}
+.atc-mode-picker button{
+  min-height:22px!important;
+  padding:2px 8px!important;
+  border:0!important;
+  border-radius:6px!important;
+  background:transparent!important;
+  color:var(--muted)!important;
+  font-size:.58rem!important;
+  line-height:1!important;
+  font-weight:800!important;
+  box-shadow:none!important;
+}
+.atc-mode-picker button.active{
+  background:var(--primary)!important;
+  color:#fff!important;
+}
+.atc-mode-picker button:focus-visible{
+  outline:2px solid var(--primary);
+  outline-offset:1px;
+}

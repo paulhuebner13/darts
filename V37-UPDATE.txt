@@ -1,0 +1,16 @@
+V37 FIX
+
+Around the Clock:
+- fataler Startfehler aus v36 behoben
+- Weiter / 1-2-3 / Statistik / Verlauf / Daten funktionieren wieder
+- Single / Double / Triple bleiben getrennt
+- Modusschalter kleiner und sauber integriert
+- Text "Wertung" entfernt
+- rote Miss-Anzeige bleibt erhalten
+
+Cricket:
+- unverändert gegenüber v36
+
+WICHTIG:
+supabase-config.js ist absichtlich nicht im ZIP.
+Die bereits konfigurierte Datei im bestehenden Repo behalten.
