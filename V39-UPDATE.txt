@@ -1,0 +1,27 @@
+V39
+
+Cricket-Ziele:
+- Zahlen 1-20 einzeln an- UND abwählbar
+- vor Spielstart müssen genau 6 Zahlen gewählt sein
+- Bull ist immer automatisch dabei
+- Alle löschen leert die Zahlenauswahl
+- 15+ setzt auf 15 bis 20
+- x+ aktivieren und danach eine Zahl anklicken:
+  z.B. 8 -> 8,9,10,11,12,13
+  z.B. 18 -> 15,16,17,18,19,20
+- Auswahl wird gespeichert
+
+Bull-Faktor:
+- Slider 1 bis 10
+- wird gespeichert
+- beeinflusst die Führungsberechnung
+
+Führungsmodell:
+- berücksichtigt unterschiedliche Punktwerte der gewählten Zahlen
+- berücksichtigt nur Felder, auf denen der jeweilige Spieler tatsächlich noch Punkte erzielen kann
+- ein Feld zählt nicht als Punktequelle, wenn alle Gegner es bereits geschlossen haben
+- Bull-Punkte werden über den Bull-Faktor entsprechend schwieriger gewichtet
+
+WICHTIG:
+supabase-config.js ist absichtlich nicht enthalten.
+Die vorhandene konfigurierte Datei im Repo behalten.

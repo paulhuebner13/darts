@@ -6,7 +6,10 @@ const HISTORY_KEY = 'darts-cricket-history-v1';
 const THEME_KEY = 'darts-trainer-theme';
 const DEFAULT_CRICKET_NUMBER_TARGETS = ['15', '16', '17', '18', '19', '20'];
 const CRICKET_TARGETS_KEY = 'darts-cricket-targets-v1';
+const BULL_FACTOR_KEY = 'darts-cricket-bull-factor-v1';
 let cricketNumberTargets = loadCricketNumberTargets();
+let bullLeadFactor = loadBullLeadFactor();
+let rangeSelectArmed = false;
 let CRICKET_TARGETS = [...cricketNumberTargets].sort((a, b) => Number(b) - Number(a)).concat('Bull');
 let INPUT_TARGETS = [...cricketNumberTargets].sort((a, b) => Number(a) - Number(b)).concat('Bull');
 const TARGET_VALUES = Object.fromEntries([
@@ -88,6 +91,11 @@ const elements = {
   addAllBotsBtn: document.getElementById('addAllBotsBtn'),
   cricketTargetPicker: document.getElementById('cricketTargetPicker'),
   resetTargetsBtn: document.getElementById('resetTargetsBtn'),
+  rangeTargetsBtn: document.getElementById('rangeTargetsBtn'),
+  clearTargetsBtn: document.getElementById('clearTargetsBtn'),
+  targetCount: document.getElementById('targetCount'),
+  bullFactorSlider: document.getElementById('bullFactorSlider'),
+  bullFactorValue: document.getElementById('bullFactorValue'),
   cricketHistory: document.getElementById('cricketHistory'),
   clearHistoryBtn: document.getElementById('clearHistoryBtn'),
   backToSetupBtn: document.getElementById('backToSetupBtn'),
@@ -350,12 +358,17 @@ function loadCricketNumberTargets() {
   try {
     const raw = JSON.parse(localStorage.getItem(CRICKET_TARGETS_KEY) || 'null');
     if (!Array.isArray(raw)) return [...DEFAULT_CRICKET_NUMBER_TARGETS];
-    const clean = [...new Set(raw.map(String))]
-      .filter((value) => /^(?:[1-9]|1\d|20)$/.test(value));
-    return clean.length === 6 ? clean : [...DEFAULT_CRICKET_NUMBER_TARGETS];
+    return [...new Set(raw.map(String))]
+      .filter((value) => /^(?:[1-9]|1\d|20)$/.test(value))
+      .slice(0, 6);
   } catch {
     return [...DEFAULT_CRICKET_NUMBER_TARGETS];
   }
+}
+
+function loadBullLeadFactor() {
+  const value = Number(localStorage.getItem(BULL_FACTOR_KEY));
+  return Number.isFinite(value) ? Math.max(1, Math.min(10, Math.round(value))) : 4;
 }
 
 function refreshCricketTargetLists() {
@@ -371,30 +384,50 @@ function saveCricketNumberTargets() {
   localStorage.setItem(CRICKET_TARGETS_KEY, JSON.stringify(cricketNumberTargets));
 }
 
+function saveBullLeadFactor() {
+  localStorage.setItem(BULL_FACTOR_KEY, String(bullLeadFactor));
+}
+
+function setRangeSelectArmed(armed) {
+  rangeSelectArmed = Boolean(armed);
+  if (elements.rangeTargetsBtn) {
+    elements.rangeTargetsBtn.classList.toggle('active', rangeSelectArmed);
+    elements.rangeTargetsBtn.setAttribute('aria-pressed', rangeSelectArmed ? 'true' : 'false');
+  }
+}
+
 function applyCricketNumberTargets(targets) {
-  const clean = [...new Set(targets.map(String))]
-    .filter((value) => /^(?:[1-9]|1\d|20)$/.test(value));
-
-  if (clean.length !== 6) return false;
-
-  cricketNumberTargets = clean;
+  cricketNumberTargets = [...new Set(targets.map(String))]
+    .filter((value) => /^(?:[1-9]|1\d|20)$/.test(value))
+    .slice(0, 6);
   refreshCricketTargetLists();
   saveCricketNumberTargets();
   renderCricketTargetPicker();
-  return true;
 }
 
 function chooseCricketNumberTarget(value) {
   const target = String(value);
-  if (!/^(?:[1-9]|1\d|20)$/.test(target) || cricketNumberTargets.includes(target)) return;
+  if (!/^(?:[1-9]|1\d|20)$/.test(target)) return;
 
-  // Keep exactly six numbers at all times. A newly selected number replaces
-  // the selected number furthest away from it; this makes nearby ranges easy to adjust.
-  const replacementIndex = cricketNumberTargets
-    .map((entry, index) => ({ index, distance: Math.abs(Number(entry) - Number(target)) }))
-    .sort((a, b) => b.distance - a.distance || a.index - b.index)[0].index;
+  if (rangeSelectArmed) {
+    const clicked = Number(target);
+    const start = Math.min(clicked, 15);
+    const range = Array.from({ length: 6 }, (_, index) => String(start + index));
+    applyCricketNumberTargets(range);
+    setRangeSelectArmed(false);
+    return;
+  }
 
-  cricketNumberTargets[replacementIndex] = target;
+  if (cricketNumberTargets.includes(target)) {
+    cricketNumberTargets = cricketNumberTargets.filter((entry) => entry !== target);
+  } else if (cricketNumberTargets.length < 6) {
+    cricketNumberTargets = [...cricketNumberTargets, target];
+  } else {
+    setSetupMessage('Maximal 6 Zahlen. Wähle zuerst eine ab oder nutze „Alle löschen“.');
+    return;
+  }
+
+  setSetupMessage('');
   refreshCricketTargetLists();
   saveCricketNumberTargets();
   renderCricketTargetPicker();
@@ -414,10 +447,32 @@ function renderCricketTargetPicker() {
       aria-pressed="${active ? 'true' : 'false'}"
     >${value}</button>`;
   }).join('');
+
+  if (elements.targetCount) {
+    elements.targetCount.textContent = `${cricketNumberTargets.length}/6`;
+    elements.targetCount.classList.toggle('invalid', cricketNumberTargets.length !== 6);
+  }
+
+  if (elements.bullFactorSlider) elements.bullFactorSlider.value = String(bullLeadFactor);
+  if (elements.bullFactorValue) elements.bullFactorValue.textContent = String(bullLeadFactor);
 }
 
 function resetCricketTargets() {
   applyCricketNumberTargets([...DEFAULT_CRICKET_NUMBER_TARGETS]);
+  setRangeSelectArmed(false);
+  setSetupMessage('');
+}
+
+function clearCricketTargets() {
+  applyCricketNumberTargets([]);
+  setRangeSelectArmed(false);
+  setSetupMessage('');
+}
+
+function updateBullLeadFactor(value) {
+  bullLeadFactor = Math.max(1, Math.min(10, Math.round(Number(value) || 1)));
+  saveBullLeadFactor();
+  if (elements.bullFactorValue) elements.bullFactorValue.textContent = String(bullLeadFactor);
 }
 
 function useTargetsFromGame(activeGame) {
@@ -427,6 +482,9 @@ function useTargetsFromGame(activeGame) {
   if (targets.length === 6) {
     cricketNumberTargets = targets;
     refreshCricketTargetLists();
+  }
+  if (Number.isFinite(Number(activeGame?.bullLeadFactor))) {
+    bullLeadFactor = Math.max(1, Math.min(10, Math.round(Number(activeGame.bullLeadFactor))));
   }
 }
 
@@ -811,6 +869,7 @@ function createGame(participants) {
     id: uid('game'),
     startedAt: Date.now(),
     targets: [...CRICKET_TARGETS],
+    bullLeadFactor,
     players: buildGamePlayers(participants),
     currentPlayerIndex: 0,
     round: 1,
@@ -881,6 +940,10 @@ function loadActiveGame() {
 }
 
 function startGameFromLineup() {
+  if (cricketNumberTargets.length !== 6) {
+    setSetupMessage('Wähle genau 6 Zahlen. Bull ist automatisch dabei.');
+    return;
+  }
   if (lineup.length < 2) {
     setSetupMessage('Du brauchst mindestens zwei Teilnehmer.');
     return;
@@ -1148,43 +1211,72 @@ function scrollActivePlayerIntoView() {
 
 
 function leadTargetWeight(target) {
-  return target === 'Bull' ? 4 : 1;
+  const factor = Number(game?.bullLeadFactor) || bullLeadFactor || 4;
+  return target === 'Bull' ? factor : 1;
+}
+
+function canEventuallyScoreOnTarget(playerIndex, target, activeIndices) {
+  return activeIndices.some((index) => (
+    index !== playerIndex
+    && Number(game.players[index].marks[target]) < 3
+  ));
+}
+
+function targetPointEfficiency(target) {
+  const value = Math.max(1, Number(TARGET_VALUES[target]) || 1);
+  return value / leadTargetWeight(target);
+}
+
+function estimatedCricketWork(playerIndex, activeIndices) {
+  const player = game.players[playerIndex];
+
+  // Work still required just to close every target.
+  const closureWork = CRICKET_TARGETS.reduce((sum, target) => {
+    const marks = Math.max(0, Math.min(3, Number(player.marks[target]) || 0));
+    return sum + ((3 - marks) * leadTargetWeight(target));
+  }, 0);
+
+  // To win, the player must also catch the highest opponent score.
+  const highestOpponentScore = Math.max(
+    Number(player.score) || 0,
+    ...activeIndices
+      .filter((index) => index !== playerIndex)
+      .map((index) => Number(game.players[index].score) || 0)
+  );
+  const pointDeficit = Math.max(0, highestOpponentScore - (Number(player.score) || 0));
+
+  if (pointDeficit <= 0) return closureWork;
+
+  // A field only counts as a future points source if at least one opponent
+  // is still open on it. If everyone else has closed it, no points can be scored there.
+  const scoringOptions = CRICKET_TARGETS
+    .filter((target) => canEventuallyScoreOnTarget(playerIndex, target, activeIndices))
+    .map((target) => ({
+      target,
+      efficiency: targetPointEfficiency(target),
+    }))
+    .filter((option) => option.efficiency > 0);
+
+  if (!scoringOptions.length) {
+    // No legal scoring route remains. Keep this player clearly behind until
+    // the score situation changes through opponents scoring.
+    return closureWork + pointDeficit;
+  }
+
+  const bestEfficiency = Math.max(...scoringOptions.map((option) => option.efficiency));
+  const scoringWork = pointDeficit / bestEfficiency;
+
+  return closureWork + scoringWork;
 }
 
 function calculateCricketLeadProgress() {
   const activeIndices = getActivePlayerIndices();
   if (!activeIndices.length) return game.players.map(() => null);
 
-  const relevantTargets = CRICKET_TARGETS.filter((target) => (
-    activeIndices.some((index) => Number(game.players[index].marks[target]) < 3)
-  ));
-
-  const currentlyScorableTargets = relevantTargets.filter((target) => {
-    const someClosed = activeIndices.some((index) => Number(game.players[index].marks[target]) >= 3);
-    const someOpen = activeIndices.some((index) => Number(game.players[index].marks[target]) < 3);
-    return someClosed && someOpen;
-  });
-
-  const conversionTargets = currentlyScorableTargets.length
-    ? currentlyScorableTargets
-    : relevantTargets;
-
-  const pointRate = conversionTargets.length
-    ? Math.max(...conversionTargets.map((target) => (
-        TARGET_VALUES[target] / leadTargetWeight(target)
-      )), 1)
-    : 20;
-
   return game.players.map((player, index) => {
     if (!activeIndices.includes(index)) return null;
-
-    const markProgress = relevantTargets.reduce((sum, target) => {
-      const marks = Math.max(0, Math.min(3, Number(player.marks[target]) || 0));
-      return sum + (marks * leadTargetWeight(target));
-    }, 0);
-
-    const pointProgress = Math.max(0, Number(player.score) || 0) / pointRate;
-    return markProgress + pointProgress;
+    // Higher progress is better; negative remaining work makes comparison simple.
+    return -estimatedCricketWork(index, activeIndices);
   });
 }
 
@@ -1654,6 +1746,7 @@ function saveCompletedRanking() {
     rounds: game.round,
     winnerName: winner.name,
     targets: [...CRICKET_TARGETS],
+    bullLeadFactor: Number(game.bullLeadFactor) || bullLeadFactor,
     players: sortedRankingPlayers().map((player) => ({
       profileId: player.profileId || null,
       name: player.name,
@@ -1915,6 +2008,13 @@ function initEvents() {
     chooseCricketNumberTarget(button.dataset.cricketTarget);
   });
   elements.resetTargetsBtn?.addEventListener('click', resetCricketTargets);
+  elements.clearTargetsBtn?.addEventListener('click', clearCricketTargets);
+  elements.rangeTargetsBtn?.addEventListener('click', () => {
+    setRangeSelectArmed(!rangeSelectArmed);
+  });
+  elements.bullFactorSlider?.addEventListener('input', (event) => {
+    updateBullLeadFactor(event.target.value);
+  });
   elements.createPlayerForm.addEventListener('submit', createProfile);
   elements.savedPlayers.addEventListener('click', (event) => {
     const addButton = event.target.closest('[data-add-profile]');

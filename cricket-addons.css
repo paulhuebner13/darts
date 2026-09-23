@@ -381,3 +381,61 @@ body.game-active .modifier-button{
   font-size:.52rem;
   text-align:right;
 }
+
+
+/* v39: fully toggleable Cricket target setup */
+.cricket-target-settings-head>span{
+  display:flex;
+  align-items:center;
+  gap:4px;
+}
+.cricket-target-settings-head>span b{
+  font-size:.55rem;
+  font-weight:900;
+  color:var(--primary);
+}
+.cricket-target-settings-head>span b.invalid{
+  color:var(--danger);
+}
+.cricket-target-actions{
+  display:flex;
+  align-items:center;
+  gap:3px;
+}
+.target-reset-btn.active{
+  border-color:var(--primary);
+  background:color-mix(in srgb,var(--primary) 12%,var(--card));
+  color:var(--primary);
+}
+.cricket-target-chip{
+  cursor:pointer;
+}
+.cricket-target-chip.active{
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--primary) 34%,transparent);
+}
+.bull-factor-row{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) 20px;
+  align-items:center;
+  gap:7px;
+  margin-top:7px;
+  padding-top:6px;
+  border-top:1px solid var(--border);
+}
+.bull-factor-row label{
+  color:var(--muted);
+  font-size:.58rem;
+  font-weight:850;
+  white-space:nowrap;
+}
+.bull-factor-row input[type="range"]{
+  width:100%;
+  min-width:0;
+  accent-color:var(--primary);
+}
+.bull-factor-row output{
+  color:var(--text);
+  font-size:.62rem;
+  font-weight:900;
+  text-align:right;
+}

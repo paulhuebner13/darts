@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="icon.svg" />
   <link rel="stylesheet" href="cricket.css?v=20" />
   <link rel="stylesheet" href="mode-nav.css" />
-  <link rel="stylesheet" href="cricket-addons.css?v=38" />
+  <link rel="stylesheet" href="cricket-addons.css?v=39" />
   <title>Darts Cricket</title>
 </head>
 <body>
@@ -68,11 +68,21 @@
 
             <div class="cricket-target-settings">
               <div class="cricket-target-settings-head">
-                <span>Zahlen</span>
-                <button id="resetTargetsBtn" class="target-reset-btn" type="button">15+</button>
+                <span>Zahlen <b id="targetCount">6/6</b></span>
+                <div class="cricket-target-actions">
+                  <button id="resetTargetsBtn" class="target-reset-btn" type="button">15+</button>
+                  <button id="rangeTargetsBtn" class="target-reset-btn" type="button" aria-pressed="false">x+</button>
+                  <button id="clearTargetsBtn" class="target-reset-btn" type="button">Alle löschen</button>
+                </div>
               </div>
               <div id="cricketTargetPicker" class="cricket-target-picker" aria-label="Cricket Zahlen auswählen"></div>
-              <div class="cricket-target-note">6 Zahlen + Bull</div>
+              <div class="cricket-target-note">genau 6 Zahlen + Bull</div>
+
+              <div class="bull-factor-row">
+                <label for="bullFactorSlider">Bull-Faktor</label>
+                <input id="bullFactorSlider" type="range" min="1" max="10" step="1" value="4">
+                <output id="bullFactorValue" for="bullFactorSlider">4</output>
+              </div>
             </div>
           </article>
         </div>
@@ -165,6 +175,6 @@
   </dialog>
 
   <script src="supabase-config.js"></script>
-  <script src="cricket.js?v=38"></script>
+  <script src="cricket.js?v=39"></script>
 </body>
 </html>
