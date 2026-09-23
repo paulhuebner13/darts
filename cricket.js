@@ -4,9 +4,15 @@ const PROFILE_KEY = 'darts-cricket-profiles-v1';
 const ACTIVE_GAME_KEY = 'darts-cricket-active-v1';
 const HISTORY_KEY = 'darts-cricket-history-v1';
 const THEME_KEY = 'darts-trainer-theme';
-const CRICKET_TARGETS = ['20', '19', '18', '17', '16', '15', 'Bull'];
-const INPUT_TARGETS = ['15', '16', '17', '18', '19', '20', 'Bull'];
-const TARGET_VALUES = { '20': 20, '19': 19, '18': 18, '17': 17, '16': 16, '15': 15, Bull: 25 };
+const DEFAULT_CRICKET_NUMBER_TARGETS = ['15', '16', '17', '18', '19', '20'];
+const CRICKET_TARGETS_KEY = 'darts-cricket-targets-v1';
+let cricketNumberTargets = loadCricketNumberTargets();
+let CRICKET_TARGETS = [...cricketNumberTargets].sort((a, b) => Number(b) - Number(a)).concat('Bull');
+let INPUT_TARGETS = [...cricketNumberTargets].sort((a, b) => Number(a) - Number(b)).concat('Bull');
+const TARGET_VALUES = Object.fromEntries([
+  ...Array.from({ length: 20 }, (_, i) => [String(i + 1), i + 1]),
+  ['Bull', 25],
+]);
 const BOARD_ORDER = ['20', '1', '18', '4', '13', '6', '10', '15', '2', '17', '3', '19', '7', '16', '8', '11', '14', '9', '12', '5'];
 
 // Die taktische Entscheidung ist bei allen Bots gleich. Nur die Genauigkeit des
@@ -80,6 +86,8 @@ const elements = {
   botDifficulty: document.getElementById('botDifficulty'),
   addBotBtn: document.getElementById('addBotBtn'),
   addAllBotsBtn: document.getElementById('addAllBotsBtn'),
+  cricketTargetPicker: document.getElementById('cricketTargetPicker'),
+  resetTargetsBtn: document.getElementById('resetTargetsBtn'),
   cricketHistory: document.getElementById('cricketHistory'),
   clearHistoryBtn: document.getElementById('clearHistoryBtn'),
   backToSetupBtn: document.getElementById('backToSetupBtn'),
@@ -337,6 +345,91 @@ async function deleteSharedPlayer(name) {
   return true;
 }
 
+
+function loadCricketNumberTargets() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CRICKET_TARGETS_KEY) || 'null');
+    if (!Array.isArray(raw)) return [...DEFAULT_CRICKET_NUMBER_TARGETS];
+    const clean = [...new Set(raw.map(String))]
+      .filter((value) => /^(?:[1-9]|1\d|20)$/.test(value));
+    return clean.length === 6 ? clean : [...DEFAULT_CRICKET_NUMBER_TARGETS];
+  } catch {
+    return [...DEFAULT_CRICKET_NUMBER_TARGETS];
+  }
+}
+
+function refreshCricketTargetLists() {
+  CRICKET_TARGETS = [...cricketNumberTargets]
+    .sort((a, b) => Number(b) - Number(a))
+    .concat('Bull');
+  INPUT_TARGETS = [...cricketNumberTargets]
+    .sort((a, b) => Number(a) - Number(b))
+    .concat('Bull');
+}
+
+function saveCricketNumberTargets() {
+  localStorage.setItem(CRICKET_TARGETS_KEY, JSON.stringify(cricketNumberTargets));
+}
+
+function applyCricketNumberTargets(targets) {
+  const clean = [...new Set(targets.map(String))]
+    .filter((value) => /^(?:[1-9]|1\d|20)$/.test(value));
+
+  if (clean.length !== 6) return false;
+
+  cricketNumberTargets = clean;
+  refreshCricketTargetLists();
+  saveCricketNumberTargets();
+  renderCricketTargetPicker();
+  return true;
+}
+
+function chooseCricketNumberTarget(value) {
+  const target = String(value);
+  if (!/^(?:[1-9]|1\d|20)$/.test(target) || cricketNumberTargets.includes(target)) return;
+
+  // Keep exactly six numbers at all times. A newly selected number replaces
+  // the selected number furthest away from it; this makes nearby ranges easy to adjust.
+  const replacementIndex = cricketNumberTargets
+    .map((entry, index) => ({ index, distance: Math.abs(Number(entry) - Number(target)) }))
+    .sort((a, b) => b.distance - a.distance || a.index - b.index)[0].index;
+
+  cricketNumberTargets[replacementIndex] = target;
+  refreshCricketTargetLists();
+  saveCricketNumberTargets();
+  renderCricketTargetPicker();
+}
+
+function renderCricketTargetPicker() {
+  if (!elements.cricketTargetPicker) return;
+
+  const selected = new Set(cricketNumberTargets);
+  elements.cricketTargetPicker.innerHTML = Array.from({ length: 20 }, (_, index) => {
+    const value = String(index + 1);
+    const active = selected.has(value);
+    return `<button
+      type="button"
+      class="cricket-target-chip ${active ? 'active' : ''}"
+      data-cricket-target="${value}"
+      aria-pressed="${active ? 'true' : 'false'}"
+    >${value}</button>`;
+  }).join('');
+}
+
+function resetCricketTargets() {
+  applyCricketNumberTargets([...DEFAULT_CRICKET_NUMBER_TARGETS]);
+}
+
+function useTargetsFromGame(activeGame) {
+  const targets = Array.isArray(activeGame?.targets)
+    ? activeGame.targets.filter((target) => target !== 'Bull').map(String)
+    : [];
+  if (targets.length === 6) {
+    cricketNumberTargets = targets;
+    refreshCricketTargetLists();
+  }
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll('&', '&amp;')
@@ -355,7 +448,11 @@ function emptyMarks() {
 }
 
 function emptyHitCounts() {
-  return Object.fromEntries(['Miss', '15', '16', '17', '18', '19', '20', 'Bull'].map((target) => [target, 0]));
+  return Object.fromEntries([
+    'Miss',
+    ...Array.from({ length: 20 }, (_, i) => String(i + 1)),
+    'Bull',
+  ].map((target) => [target, 0]));
 }
 
 function normalizeHitCounts(raw) {
@@ -713,6 +810,7 @@ function createGame(participants) {
   return {
     id: uid('game'),
     startedAt: Date.now(),
+    targets: [...CRICKET_TARGETS],
     players: buildGamePlayers(participants),
     currentPlayerIndex: 0,
     round: 1,
@@ -762,6 +860,7 @@ function loadActiveGame() {
     : [];
   raw.log = Array.isArray(raw.log) ? raw.log.slice(-80) : [];
   raw.dartsThisTurn = Array.isArray(raw.dartsThisTurn) ? raw.dartsThisTurn.slice(0, 3) : [];
+  useTargetsFromGame(raw);
   raw.players.forEach((player) => {
     const placement = Number(player.placement);
     player.placement = Number.isInteger(placement) && placement > 0 ? placement : null;
@@ -1554,6 +1653,7 @@ function saveCompletedRanking() {
     startedAt: game.startedAt,
     rounds: game.round,
     winnerName: winner.name,
+    targets: [...CRICKET_TARGETS],
     players: sortedRankingPlayers().map((player) => ({
       profileId: player.profileId || null,
       name: player.name,
@@ -1809,6 +1909,12 @@ function registerServiceWorker() {
 }
 
 function initEvents() {
+  elements.cricketTargetPicker?.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-cricket-target]');
+    if (!button) return;
+    chooseCricketNumberTarget(button.dataset.cricketTarget);
+  });
+  elements.resetTargetsBtn?.addEventListener('click', resetCricketTargets);
   elements.createPlayerForm.addEventListener('submit', createProfile);
   elements.savedPlayers.addEventListener('click', (event) => {
     const addButton = event.target.closest('[data-add-profile]');
@@ -1862,6 +1968,7 @@ function init() {
   initEvents();
   renderProfiles();
   renderLineup();
+  renderCricketTargetPicker();
   renderHistory();
   renderOnlineStats();
   registerServiceWorker();

@@ -324,3 +324,60 @@ body.game-active .modifier-button{
 .online-comparison-panel .online-player-columns{grid-template-columns:1fr 1fr}
 
 /* v36 online sync is automatic; no manual status controls. */
+
+
+/* v38: compact custom Cricket target selector below Bot */
+.cricket-target-settings{
+  margin-top:9px;
+  padding-top:8px;
+  border-top:1px solid var(--border);
+}
+.cricket-target-settings-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:6px;
+  margin-bottom:5px;
+}
+.cricket-target-settings-head>span{
+  color:var(--muted);
+  font-size:.64rem;
+  font-weight:850;
+}
+.target-reset-btn{
+  min-height:22px;
+  padding:1px 7px;
+  border:1px solid var(--border);
+  border-radius:7px;
+  background:transparent;
+  color:var(--muted);
+  font-size:.58rem;
+  font-weight:850;
+}
+.cricket-target-picker{
+  display:grid;
+  grid-template-columns:repeat(10,minmax(0,1fr));
+  gap:2px;
+}
+.cricket-target-chip{
+  min-width:0;
+  min-height:22px;
+  padding:1px 0;
+  border:1px solid var(--border);
+  border-radius:5px;
+  background:transparent;
+  color:var(--muted);
+  font-size:.57rem;
+  font-weight:800;
+}
+.cricket-target-chip.active{
+  border-color:var(--primary);
+  background:color-mix(in srgb,var(--primary) 12%,var(--card));
+  color:var(--primary);
+}
+.cricket-target-note{
+  margin-top:3px;
+  color:var(--muted);
+  font-size:.52rem;
+  text-align:right;
+}

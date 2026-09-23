@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="icon.svg" />
   <link rel="stylesheet" href="cricket.css?v=20" />
   <link rel="stylesheet" href="mode-nav.css" />
-  <link rel="stylesheet" href="cricket-addons.css?v=36" />
+  <link rel="stylesheet" href="cricket-addons.css?v=38" />
   <title>Darts Cricket</title>
 </head>
 <body>
@@ -65,6 +65,15 @@
               <button id="addBotBtn" class="small-primary bot-add-button" type="button">+</button>
             </div>
             <button id="addAllBotsBtn" class="quiet-button all-bots-button" type="button">Alle 5 Bots hinzufügen</button>
+
+            <div class="cricket-target-settings">
+              <div class="cricket-target-settings-head">
+                <span>Zahlen</span>
+                <button id="resetTargetsBtn" class="target-reset-btn" type="button">15+</button>
+              </div>
+              <div id="cricketTargetPicker" class="cricket-target-picker" aria-label="Cricket Zahlen auswählen"></div>
+              <div class="cricket-target-note">6 Zahlen + Bull</div>
+            </div>
           </article>
         </div>
 
@@ -156,6 +165,6 @@
   </dialog>
 
   <script src="supabase-config.js"></script>
-  <script src="cricket.js?v=36"></script>
+  <script src="cricket.js?v=38"></script>
 </body>
 </html>

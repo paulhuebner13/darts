@@ -1,0 +1,15 @@
+V38
+
+Cricket:
+- dezente Zielauswahl 1-20 direkt unter den Bots
+- immer exakt 6 Zahlen + Bull
+- Bull ist immer automatisch dabei
+- Klick auf eine neue Zahl ersetzt automatisch eine bisher gewählte Zahl
+- 15+ setzt auf 15,16,17,18,19,20 + Bull zurück
+- Auswahl wird im Browser gespeichert
+- aktives Spiel speichert seinen eigenen Zielsatz
+- History speichert den verwendeten Zielsatz mit
+
+WICHTIG:
+supabase-config.js ist absichtlich nicht im ZIP.
+Die vorhandene konfigurierte Datei im Repo behalten.
