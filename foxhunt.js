@@ -9,6 +9,7 @@ const els={
   setupView:$('setupView'),gameView:$('gameView'),themeToggle:$('themeToggle'),
   profiles:$('profiles'),lineup:$('lineup'),variantPicker:$('variantPicker'),
   startBtn:$('startBtn'),setupMessage:$('setupMessage'),history:$('history'),
+  clearHistoryBtn:$('clearHistoryBtn'),foxStats:$('foxStats'),
   versusBoard:$('versusBoard'),huntRing:$('huntRing'),distanceNumber:$('distanceNumber'),
   hitCountPicker:$('hitCountPicker'),continueBtn:$('continueBtn'),undoBtn:$('undoBtn'),backSetupBtn:$('backSetupBtn'),
   winDialog:$('winDialog'),winTitle:$('winTitle'),winText:$('winText'),
@@ -19,12 +20,15 @@ let profiles=load(PROFILE_KEY,[]);
 let history=load(HISTORY_KEY,[]);
 let setup=load(SETUP_KEY,{lineup:[],foxName:null,variant:'double'});
 let game=null;
-let selectedHits=0;
+let selectedDarts=[false,false,false];
 
 function load(key,fallback){try{const v=JSON.parse(localStorage.getItem(key));return v??fallback}catch{return fallback}}
 function save(key,value){localStorage.setItem(key,JSON.stringify(value))}
 function esc(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function uid(){return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`}
+function variantLabel(variant){
+  return ({segment:'Segment',double:'Double',triple:'Triple'})[variant]||'Double';
+}
 function idx(n){return BOARD_ORDER.indexOf(Number(n))}
 function next(i){return (i+1)%BOARD_ORDER.length}
 function applyTheme(theme){document.documentElement.dataset.theme=theme==='dark'?'dark':'light';localStorage.setItem(THEME_KEY,theme)}
@@ -104,13 +108,57 @@ function renderHistory(){
   }
   els.history.className='history';
   els.history.innerHTML=[...history].reverse().slice(0,16).map((h)=>`
-    <div class="history-row"><span>${esc(h.winner)}</span><span>${h.winnerRole==='fox'?'Fuchs':'Jäger'} · ${h.variant==='double'?'Double':'Segment'}</span></div>`).join('');
+    <div class="history-row"><span>${esc(h.winner)}</span><span>${h.winnerRole==='fox'?'Fuchs':'Jäger'} · ${variantLabel(h.variant)}</span></div>`).join('');
 }
 
+
+function renderStats(){
+  if(!els.foxStats)return;
+
+  if(!history.length){
+    els.foxStats.innerHTML='<div class="empty-copy">Noch keine Statistik.</div>';
+    return;
+  }
+
+  const total=history.length;
+  const foxWins=history.filter((h)=>h.winnerRole==='fox').length;
+  const hunterWins=history.filter((h)=>h.winnerRole==='hunter').length;
+  const byVariant=['segment','double','triple'].map((variant)=>({
+    variant,
+    games:history.filter((h)=>h.variant===variant).length,
+  }));
+
+  const winners=new Map();
+  history.forEach((h)=>{
+    winners.set(h.winner,(winners.get(h.winner)||0)+1);
+  });
+  const top=[...winners.entries()].sort((a,b)=>b[1]-a[1])[0];
+
+  els.foxStats.innerHTML=`
+    <div class="stats-grid">
+      <div class="stat-box"><span>Spiele</span><strong>${total}</strong></div>
+      <div class="stat-box"><span>Fuchs-Siege</span><strong>${foxWins}</strong></div>
+      <div class="stat-box"><span>Jäger-Siege</span><strong>${hunterWins}</strong></div>
+      <div class="stat-box"><span>Meiste Siege</span><strong>${top?esc(top[0]):'–'}</strong><small>${top?top[1]+'×':''}</small></div>
+    </div>
+    <div class="variant-stats">
+      ${byVariant.map((row)=>`<span>${variantLabel(row.variant)} <b>${row.games}</b></span>`).join('')}
+    </div>`;
+}
+
+function clearHistory(){
+  if(!history.length)return;
+  if(!window.confirm('Kompletten Fuchsjagd-Verlauf löschen?'))return;
+  history=[];
+  save(HISTORY_KEY,history);
+  renderHistory();
+  renderStats();
+}
 function createGame(){
   const hunter=setup.lineup.find((name)=>name!==setup.foxName);
   return {
     id:uid(),variant:setup.variant,turn:0,undo:[],finished:false,
+    visits:0,totalHits:0,totalDarts:0,
     players:[
       {name:setup.foxName,role:'fox',pos:idx(18),steps:0},
       {name:hunter,role:'hunter',pos:idx(20),steps:0}
@@ -118,9 +166,9 @@ function createGame(){
   };
 }
 
-function snap(){return JSON.parse(JSON.stringify({turn:game.turn,players:game.players,finished:game.finished,selectedHits}))}
+function snap(){return JSON.parse(JSON.stringify({turn:game.turn,players:game.players,finished:game.finished,selectedDarts,visits:game.visits,totalHits:game.totalHits,totalDarts:game.totalDarts}))}
 function pushUndo(){game.undo.push(snap());if(game.undo.length>60)game.undo.shift()}
-function restore(s){game.turn=s.turn;game.players=s.players;game.finished=s.finished;selectedHits=Number(s.selectedHits)||0;renderGame()}
+function restore(s){game.turn=s.turn;game.players=s.players;game.finished=s.finished;game.visits=Number(s.visits)||0;game.totalHits=Number(s.totalHits)||0;game.totalDarts=Number(s.totalDarts)||0;selectedDarts=Array.isArray(s.selectedDarts)?s.selectedDarts.slice(0,3):[false,false,false];while(selectedDarts.length<3)selectedDarts.push(false);renderGame()}
 function current(){return game.players[game.turn]}
 function fox(){return game.players.find((p)=>p.role==='fox')}
 function hunter(){return game.players.find((p)=>p.role==='hunter')}
@@ -178,9 +226,10 @@ function renderHuntRing(){
   const gap=.8;
 
   const segments=BOARD_ORDER.map((number,index)=>{
-    const start=index*segmentAngle+gap/2;
-    const end=(index+1)*segmentAngle-gap/2;
-    const mid=index*segmentAngle+segmentAngle/2;
+    const rotationOffset=-segmentAngle/2;
+    const start=index*segmentAngle+rotationOffset+gap/2;
+    const end=(index+1)*segmentAngle+rotationOffset-gap/2;
+    const mid=index*segmentAngle+rotationOffset+segmentAngle/2;
     const labelPoint=polarPoint(center,center,(outer+inner)/2,mid);
     const isFox=index===foxPos;
     const isHunter=index===hunterPos;
@@ -210,8 +259,19 @@ function renderHuntRing(){
 
 function renderHitPicker(){
   els.hitCountPicker.querySelectorAll('[data-hits]').forEach((button)=>{
-    const hits=Number(button.dataset.hits);
-    button.classList.toggle('active', hits<=selectedHits);
+    const dartIndex=Number(button.dataset.hits)-1;
+    button.classList.toggle('active', Boolean(selectedDarts[dartIndex]));
+  });
+}
+
+function flashMissedDarts(){
+  els.hitCountPicker.querySelectorAll('[data-hits]').forEach((button)=>{
+    const dartIndex=Number(button.dataset.hits)-1;
+    if(selectedDarts[dartIndex])return;
+    button.classList.remove('miss-flash');
+    void button.offsetWidth;
+    button.classList.add('miss-flash');
+    window.setTimeout(()=>button.classList.remove('miss-flash'),320);
   });
 }
 
@@ -223,7 +283,7 @@ function renderGame(){
         <span>${p.role==='fox'?'Fuchs':'Jäger'}</span>
         <strong>${esc(p.name)}</strong>
       </div>
-      <div class="target-label">${game.variant==='double'?'D':''}${BOARD_ORDER[p.pos]}</div>
+      <div class="target-label">${game.variant==='double'?'D':game.variant==='triple'?'T':''}${BOARD_ORDER[p.pos]}</div>
       <div class="distance-label">${distanceInfo(p)}</div>
     </article>`).join('');
 
@@ -232,12 +292,21 @@ function renderGame(){
   els.undoBtn.disabled=!game.undo.length;
 }
 
-function nextTurn(){game.turn=(game.turn+1)%2;selectedHits=0;renderGame()}
+function nextTurn(){game.turn=(game.turn+1)%2;selectedDarts=[false,false,false];renderGame()}
 
 function finish(winner,role){
   game.finished=true;
-  history.push({id:game.id,finishedAt:Date.now(),winner,winnerRole:role,variant:game.variant});
-  history=history.slice(-100);save(HISTORY_KEY,history);renderHistory();
+  history.push({
+    id:game.id,
+    finishedAt:Date.now(),
+    winner,
+    winnerRole:role,
+    variant:game.variant,
+    visits:game.visits,
+    totalHits:game.totalHits,
+    totalDarts:game.totalDarts
+  });
+  history=history.slice(-100);save(HISTORY_KEY,history);renderHistory();renderStats();
   els.winTitle.textContent=role==='fox'?`${winner} entkommt`:`${winner} gewinnt`;
   els.winText.textContent=role==='fox'?'Runde geschafft.':'Fuchs eingeholt.';
   els.winDialog.showModal();
@@ -245,37 +314,44 @@ function finish(winner,role){
 
 function applyVisit(){
   if(!game||game.finished)return;
+
+  flashMissedDarts();
   pushUndo();
   const p=current();
-  const hits=Math.max(0,Math.min(3,Number(selectedHits)||0));
+  const hitCount=selectedDarts.filter(Boolean).length;
+  game.visits=(Number(game.visits)||0)+1;
+  game.totalDarts=(Number(game.totalDarts)||0)+3;
+  game.totalHits=(Number(game.totalHits)||0)+hitCount;
 
-  for(let i=0;i<hits;i++){
+  for(let dartIndex=0;dartIndex<3;dartIndex++){
+    if(!selectedDarts[dartIndex])continue;
+
     p.pos=next(p.pos);
 
     if(p.role==='fox'){
       p.steps++;
       if(p.steps>=BOARD_ORDER.length){
-        finish(p.name,'fox');
+        window.setTimeout(()=>finish(p.name,'fox'),180);
         return;
       }
     }else if(p.pos===fox().pos){
-      finish(p.name,'hunter');
+      window.setTimeout(()=>finish(p.name,'hunter'),180);
       return;
     }
   }
 
-  nextTurn();
+  window.setTimeout(nextTurn,180);
 }
 
 function showSetup(){
   if(els.winDialog.open)els.winDialog.close();
   game=null;els.gameView.classList.remove('active');els.setupView.classList.add('active');
-  renderProfiles();renderLineup();renderHistory();
+  renderProfiles();renderLineup();renderHistory();renderStats();
 }
 
 function start(){
   if(setup.lineup.length!==2||!setup.foxName)return;
-  game=createGame();selectedHits=0;
+  game=createGame();selectedDarts=[false,false,false];
   els.setupView.classList.remove('active');els.gameView.classList.add('active');
   renderGame();
 }
@@ -299,21 +375,23 @@ els.variantPicker.addEventListener('click',(e)=>{
   setup.variant=b.dataset.variant;persist();renderLineup();
 });
 
+els.clearHistoryBtn?.addEventListener('click',clearHistory);
 els.startBtn.addEventListener('click',start);
 els.hitCountPicker.addEventListener('click',(e)=>{
   const b=e.target.closest('[data-hits]');if(!b)return;
-  const hits=Number(b.dataset.hits);
-  selectedHits = selectedHits===hits ? 0 : hits;
+  const dartIndex=Number(b.dataset.hits)-1;
+  if(dartIndex<0||dartIndex>2)return;
+  selectedDarts[dartIndex]=!selectedDarts[dartIndex];
   renderHitPicker();
 });
 els.continueBtn.addEventListener('click',applyVisit);
 els.undoBtn.addEventListener('click',()=>{if(game?.undo.length)restore(game.undo.pop())});
 els.backSetupBtn.addEventListener('click',showSetup);
 els.dialogSetupBtn.addEventListener('click',showSetup);
-els.rematchBtn.addEventListener('click',()=>{els.winDialog.close();game=createGame();selectedHits=0;els.setupView.classList.remove('active');els.gameView.classList.add('active');renderGame()});
+els.rematchBtn.addEventListener('click',()=>{els.winDialog.close();game=createGame();selectedDarts=[false,false,false];els.setupView.classList.remove('active');els.gameView.classList.add('active');renderGame()});
 els.themeToggle.addEventListener('click',toggleTheme);
 
 applyTheme(localStorage.getItem(THEME_KEY)||'light');
-renderProfiles();renderLineup();renderHistory();void syncProfiles();
+renderProfiles();renderLineup();renderHistory();renderStats();void syncProfiles();
 window.setInterval(()=>{if(!document.hidden)void syncProfiles()},10000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)void syncProfiles()});

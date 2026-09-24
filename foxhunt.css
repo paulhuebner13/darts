@@ -376,3 +376,99 @@ dialog::backdrop{background:rgba(5,8,15,.62)}
   }
   .continue-button{min-height:43px!important}
 }
+
+
+/* v44: independent dart toggles + stronger active-player emphasis */
+.player-board.active{
+  border-width:3px!important;
+  transform:translateY(-2px) scale(1.012)!important;
+}
+.player-board.active.fox{
+  box-shadow:0 0 0 4px color-mix(in srgb,var(--fox) 16%,transparent)!important;
+}
+.player-board.active.hunter{
+  box-shadow:0 0 0 4px color-mix(in srgb,var(--primary) 16%,transparent)!important;
+}
+.player-board.active .player-board-top strong{
+  font-weight:1000;
+}
+
+.hit-count-picker button.miss-flash{
+  animation:fox-miss-flash .32s ease;
+  border-color:var(--danger)!important;
+}
+.hit-count-picker button.miss-flash span{
+  background:var(--danger)!important;
+  border-color:var(--danger)!important;
+  color:#fff!important;
+  box-shadow:0 0 0 5px color-mix(in srgb,var(--danger) 16%,transparent);
+}
+@keyframes fox-miss-flash{
+  0%{transform:scale(1)}
+  35%{transform:scale(1.045)}
+  100%{transform:scale(1)}
+}
+
+
+/* v45: 3 variants + clearable history + compact statistics */
+.segmented{
+  grid-template-columns:repeat(3,1fr)!important;
+}
+.section-heading-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+.section-heading-row .section-title{
+  margin-bottom:0;
+}
+.tiny-action{
+  min-height:26px;
+  padding:2px 5px;
+  font-size:.57rem;
+}
+.stats-grid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:6px;
+}
+.stat-box{
+  padding:7px 8px;
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:var(--card2);
+}
+.stat-box span{
+  display:block;
+  color:var(--muted);
+  font-size:.57rem;
+}
+.stat-box strong{
+  display:inline-block;
+  margin-top:2px;
+  font-size:.92rem;
+}
+.stat-box small{
+  margin-left:4px;
+  color:var(--muted);
+  font-size:.56rem;
+}
+.variant-stats{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:4px;
+  margin-top:6px;
+}
+.variant-stats span{
+  padding:5px 4px;
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:var(--card);
+  color:var(--muted);
+  text-align:center;
+  font-size:.57rem;
+}
+.variant-stats b{
+  color:var(--text);
+}

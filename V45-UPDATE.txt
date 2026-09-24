@@ -1,0 +1,15 @@
+V45
+
+Fuchsjagd:
+- Verlauf kann komplett gelöscht werden
+- Varianten jetzt Segment / Double / Triple
+- Verlauf zeigt jeweilige Variante
+- kompakte Statistik ergänzt:
+  - Spiele
+  - Fuchs-Siege
+  - Jäger-Siege
+  - Spieler mit den meisten Siegen
+  - Anzahl Spiele je Variante
+- neue Spiele speichern zusätzlich Visits, Treffer und Darts für spätere erweiterte Statistik
+
+supabase-config.js bleibt im bestehenden Repo erhalten.

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#111827">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="foxhunt.css?v=43">
+  <link rel="stylesheet" href="foxhunt.css?v=45">
   <link rel="stylesheet" href="mode-nav.css">
   <title>Fuchsjagd</title>
 </head>
@@ -39,8 +39,9 @@
 
       <div class="setup-bottom-row">
         <div class="segmented" id="variantPicker">
-          <button type="button" data-variant="double" class="active">Double</button>
           <button type="button" data-variant="segment">Segment</button>
+          <button type="button" data-variant="double" class="active">Double</button>
+          <button type="button" data-variant="triple">Triple</button>
         </div>
         <button id="startBtn" class="primary start-button" type="button" disabled>Start</button>
       </div>
@@ -48,8 +49,16 @@
       <p id="setupMessage" class="setup-message"></p>
 
       <article class="card history-card">
-        <div class="section-title">Verlauf</div>
+        <div class="section-heading-row">
+          <div class="section-title">Verlauf</div>
+          <button id="clearHistoryBtn" class="quiet tiny-action" type="button">Verlauf löschen</button>
+        </div>
         <div id="history" class="history empty">Noch kein Spiel.</div>
+      </article>
+
+      <article class="card stats-card">
+        <div class="section-title">Statistik</div>
+        <div id="foxStats" class="fox-stats"></div>
       </article>
     </section>
 
@@ -91,6 +100,6 @@
   </dialog>
 
   <script src="supabase-config.js"></script>
-  <script src="foxhunt.js?v=43"></script>
+  <script src="foxhunt.js?v=45"></script>
 </body>
 </html>
