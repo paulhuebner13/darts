@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <meta name="description" content="Darts Fuchsjagd">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="foxhunt.css?v=40">
+  <link rel="stylesheet" href="mode-nav.css">
+  <title>Darts Fuchsjagd</title>
+</head>
+<body>
+  <main class="fox-shell">
+    <div class="mode-topbar">
+      <nav class="mode-switch" aria-label="Spielmodus">
+        <a class="mode-pill" href="index.html">Around the Clock</a>
+        <a class="mode-pill" href="cricket.html">Cricket</a>
+        <a class="mode-pill" href="501.html">501</a>
+        <a class="mode-pill active" href="foxhunt.html">Fuchsjagd</a>
+      </nav>
+      <button id="themeToggle" class="icon-button" type="button" aria-label="Theme wechseln">◐</button>
+    </div>
+
+    <section id="setupView" class="screen active">
+      <div class="heading-row">
+        <div>
+          <h1>Fuchsjagd</h1>
+          <p>Jäger gegen Fuchs</p>
+        </div>
+        <span class="fox-badge">🦊</span>
+      </div>
+
+      <article class="card">
+        <div class="section-title">Spieler</div>
+        <form id="playerForm" class="player-form">
+          <input id="playerName" maxlength="24" placeholder="Name" autocomplete="off">
+          <button class="primary small" type="submit">Hinzufügen</button>
+        </form>
+        <div id="profiles" class="profile-list"></div>
+      </article>
+
+      <article class="card">
+        <div class="section-title">Teilnehmer & Fuchs</div>
+        <p class="hint">Ausbullen: Wer am nächsten am Bull ist, wird hier als Fuchs gewählt.</p>
+        <div id="lineup" class="lineup"></div>
+      </article>
+
+      <article class="card">
+        <div class="section-title">Trefferart</div>
+        <div class="segmented" id="variantPicker">
+          <button type="button" data-variant="double" class="active">Double</button>
+          <button type="button" data-variant="segment">Anfänger · Segment</button>
+        </div>
+      </article>
+
+      <button id="startBtn" class="primary full" type="button" disabled>Fuchsjagd starten</button>
+      <p id="setupMessage" class="setup-message"></p>
+
+      <article class="card history-card">
+        <div class="section-title">Verlauf</div>
+        <div id="history" class="history empty">Noch kein Spiel gespeichert.</div>
+      </article>
+    </section>
+
+    <section id="gameView" class="screen">
+      <div class="game-top">
+        <div>
+          <span id="turnRole" class="eyebrow"></span>
+          <h1 id="turnName">–</h1>
+        </div>
+        <button id="backSetupBtn" class="secondary small" type="button">Setup</button>
+      </div>
+
+      <div id="playersBoard" class="players-board"></div>
+
+      <article class="target-card">
+        <span id="targetMode" class="target-mode">DOUBLE</span>
+        <div id="targetValue" class="target-value">18</div>
+        <div id="dartCounter" class="dart-counter">Dart 1 von 3</div>
+        <div class="throw-actions">
+          <button id="missBtn" class="secondary throw-button" type="button">Miss</button>
+          <button id="hitBtn" class="primary throw-button" type="button">Treffer</button>
+        </div>
+        <button id="undoBtn" class="quiet full" type="button">↶ Letzten Dart zurück</button>
+      </article>
+
+      <div class="legend">
+        <span><b>Fuchs</b> startet 18</span>
+        <span><b>Jäger</b> starten 20</span>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="winDialog">
+    <div class="dialog-card">
+      <div class="win-icon">🦊</div>
+      <h2 id="winTitle">Spiel beendet</h2>
+      <p id="winText"></p>
+      <button id="rematchBtn" class="primary full" type="button">Revanche</button>
+      <button id="dialogSetupBtn" class="secondary full" type="button">Zum Setup</button>
+    </div>
+  </dialog>
+
+  <script src="foxhunt.js?v=40"></script>
+</body>
+</html>

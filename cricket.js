@@ -366,9 +366,16 @@ function loadCricketNumberTargets() {
   }
 }
 
+function normalizeBullLeadFactor(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 4;
+  const clamped = Math.max(1, Math.min(4, numeric));
+  return Math.round(clamped * 5) / 5;
+}
+
 function loadBullLeadFactor() {
-  const value = Number(localStorage.getItem(BULL_FACTOR_KEY));
-  return Number.isFinite(value) ? Math.max(1, Math.min(10, Math.round(value))) : 4;
+  const stored = localStorage.getItem(BULL_FACTOR_KEY);
+  return stored === null ? 4 : normalizeBullLeadFactor(stored);
 }
 
 function refreshCricketTargetLists() {
@@ -453,8 +460,8 @@ function renderCricketTargetPicker() {
     elements.targetCount.classList.toggle('invalid', cricketNumberTargets.length !== 6);
   }
 
-  if (elements.bullFactorSlider) elements.bullFactorSlider.value = String(bullLeadFactor);
-  if (elements.bullFactorValue) elements.bullFactorValue.textContent = String(bullLeadFactor);
+  if (elements.bullFactorSlider) elements.bullFactorSlider.value = bullLeadFactor.toFixed(1);
+  if (elements.bullFactorValue) elements.bullFactorValue.textContent = bullLeadFactor.toFixed(1);
 }
 
 function resetCricketTargets() {
@@ -470,9 +477,10 @@ function clearCricketTargets() {
 }
 
 function updateBullLeadFactor(value) {
-  bullLeadFactor = Math.max(1, Math.min(10, Math.round(Number(value) || 1)));
+  bullLeadFactor = normalizeBullLeadFactor(value);
   saveBullLeadFactor();
-  if (elements.bullFactorValue) elements.bullFactorValue.textContent = String(bullLeadFactor);
+  if (elements.bullFactorSlider) elements.bullFactorSlider.value = bullLeadFactor.toFixed(1);
+  if (elements.bullFactorValue) elements.bullFactorValue.textContent = bullLeadFactor.toFixed(1);
 }
 
 function useTargetsFromGame(activeGame) {
@@ -484,7 +492,7 @@ function useTargetsFromGame(activeGame) {
     refreshCricketTargetLists();
   }
   if (Number.isFinite(Number(activeGame?.bullLeadFactor))) {
-    bullLeadFactor = Math.max(1, Math.min(10, Math.round(Number(activeGame.bullLeadFactor))));
+    bullLeadFactor = normalizeBullLeadFactor(activeGame.bullLeadFactor);
   }
 }
 

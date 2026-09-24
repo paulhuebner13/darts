@@ -1,0 +1,22 @@
+V40
+
+Cricket:
+- Bull-Faktor jetzt 1,0 bis 4,0
+- Schrittweite 0,2
+- Wert wird weiterhin gespeichert
+
+Neuer 4. Modus: Fuchsjagd
+- reale Uhrzeiger-Reihenfolge des Dartboards
+- Ausbullen wird real durchgeführt; Gewinner wird im Setup als Fuchs markiert
+- Fuchs startet auf 18
+- Jäger starten auf 20
+- Standard: Double
+- Anfänger: gesamtes Zahlensegment
+- Treffer rückt zum nächsten Feld weiter
+- pro Zug 3 Darts
+- Jäger gewinnt beim Landen auf dem aktuellen Feld des Fuchses
+- Fuchs gewinnt nach einer kompletten Runde zurück zur 18
+- Undo, Revanche und lokaler Verlauf enthalten
+
+WICHTIG:
+supabase-config.js ist absichtlich nicht im ZIP. Die konfigurierte Datei im Repo behalten.
