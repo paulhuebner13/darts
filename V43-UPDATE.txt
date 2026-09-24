@@ -1,0 +1,19 @@
+V43
+
+Fuchsjagd:
+- Board jetzt als echter Donut aus 20 Kreissegmenten
+- keine rechteckigen Zahlenfelder mehr
+- nur äußerer und innerer Kreis + Segmente dazwischen
+- Fuchs gelb, Jäger grün
+- Zahl steht direkt im Segment
+- Abstand bleibt groß in der Mitte
+
+Eingabe:
+- 1 / 2 / 3 jetzt große runde Felder wie Around the Clock
+- Weiter als breiter Button darunter
+
+Setup:
+- Double / Segment breiter
+- Fuchs-Auswahl mit den beiden Namen breiter und weniger gestaucht
+
+supabase-config.js bleibt im bestehenden Repo erhalten.

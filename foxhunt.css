@@ -204,3 +204,175 @@ dialog::backdrop{background:rgba(5,8,15,.62)}
   .target-label{font-size:2.35rem;margin:9px 0 5px}
   .hit-count-picker button{min-height:44px}
 }
+
+
+/* v43: true circular donut board — no rectangular field boxes */
+.hunt-ring-wrap{
+  width:min(72vw,310px)!important;
+  aspect-ratio:1;
+  margin:8px auto 7px!important;
+}
+.hunt-ring{
+  position:absolute;
+  inset:0;
+  border-radius:50%;
+  background:transparent!important;
+}
+.hunt-ring::before{
+  display:none!important;
+}
+.hunt-ring-svg{
+  display:block;
+  width:100%;
+  height:100%;
+  overflow:visible;
+}
+.ring-outer-line,
+.ring-inner-line{
+  fill:none;
+  stroke:var(--border);
+  stroke-width:1.5;
+  pointer-events:none;
+}
+.donut-segment{
+  fill:var(--card);
+  stroke:var(--border);
+  stroke-width:1.1;
+  transition:fill .14s ease,stroke .14s ease;
+}
+.donut-segment.fox-pos{
+  fill:#f2c84b;
+  stroke:#d2a710;
+  stroke-width:2;
+}
+.donut-segment.hunter-pos{
+  fill:#57b879;
+  stroke:#328d53;
+  stroke-width:2;
+}
+.donut-segment.same-pos{
+  fill:url(#unused);
+  stroke:var(--text);
+  stroke-width:2.3;
+}
+/* SVG paint fallback for a shared field: green-yellow midpoint via occupied overlay look */
+.donut-segment.fox-pos.hunter-pos{
+  fill:#a9c85f;
+}
+.donut-number{
+  fill:var(--muted);
+  font-size:12px;
+  font-weight:900;
+  pointer-events:none;
+  user-select:none;
+}
+.donut-number.occupied{
+  fill:#162016;
+}
+.hunt-ring-center{
+  inset:31%!important;
+  border-radius:50%!important;
+  border:1px solid var(--border)!important;
+  background:var(--card)!important;
+  box-shadow:var(--shadow)!important;
+}
+.hunt-ring-center strong{
+  font-size:2.35rem!important;
+}
+.hunt-ring-center span{
+  font-size:.57rem!important;
+}
+
+/* v43: Around-the-Clock-style round 1/2/3 controls */
+.visit-input{
+  display:block!important;
+  width:100%;
+}
+.hit-count-picker{
+  display:grid!important;
+  grid-template-columns:repeat(3,1fr)!important;
+  gap:12px!important;
+  width:min(100%,360px);
+  margin:0 auto 8px;
+}
+.hit-count-picker button{
+  width:100%;
+  aspect-ratio:1;
+  min-height:0!important;
+  padding:0!important;
+  border:1px solid var(--border)!important;
+  border-radius:50%!important;
+  background:var(--card)!important;
+  color:var(--text)!important;
+  box-shadow:var(--shadow);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.hit-count-picker button span{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:74%;
+  height:74%;
+  border-radius:50%;
+  font-size:1.22rem;
+  font-weight:950;
+  background:var(--card2);
+  border:1px solid var(--border);
+}
+.hit-count-picker button.active{
+  border-color:var(--primary)!important;
+  background:color-mix(in srgb,var(--primary) 9%,var(--card))!important;
+}
+.hit-count-picker button.active span{
+  background:var(--primary);
+  border-color:var(--primary);
+  color:#fff;
+}
+.continue-button{
+  display:block;
+  width:100%!important;
+  min-height:48px!important;
+  border-radius:12px!important;
+  font-size:.82rem!important;
+}
+
+/* v43: less cramped setup */
+.setup-bottom-row{
+  grid-template-columns:minmax(0,1fr) 100px!important;
+  gap:8px!important;
+}
+.segmented{
+  min-height:44px;
+}
+.segmented button{
+  min-height:38px;
+  padding:5px 12px!important;
+  font-size:.69rem!important;
+}
+.lineup{
+  grid-template-columns:1fr 1fr!important;
+  gap:8px!important;
+}
+.fox-choice{
+  min-height:39px!important;
+  padding:6px 12px!important;
+  font-size:.72rem!important;
+}
+.card{
+  padding:13px!important;
+}
+
+@media(max-height:760px){
+  .hunt-ring-wrap{
+    width:min(59vw,245px)!important;
+    margin:4px auto!important;
+  }
+  .hit-count-picker{
+    width:min(100%,300px);
+    gap:9px!important;
+    margin-bottom:6px;
+  }
+  .continue-button{min-height:43px!important}
+}

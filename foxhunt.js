@@ -143,25 +143,67 @@ function distanceInfo(player){
   return `${d} Feld${d===1?'':'er'} Vorsprung`;
 }
 
+function polarPoint(cx, cy, radius, angleDeg){
+  const angle=(angleDeg-90)*Math.PI/180;
+  return {
+    x:cx+radius*Math.cos(angle),
+    y:cy+radius*Math.sin(angle)
+  };
+}
+
+function donutPath(cx,cy,innerRadius,outerRadius,startAngle,endAngle){
+  const outerStart=polarPoint(cx,cy,outerRadius,startAngle);
+  const outerEnd=polarPoint(cx,cy,outerRadius,endAngle);
+  const innerEnd=polarPoint(cx,cy,innerRadius,endAngle);
+  const innerStart=polarPoint(cx,cy,innerRadius,startAngle);
+  const largeArc=endAngle-startAngle>180?1:0;
+
+  return [
+    `M ${outerStart.x} ${outerStart.y}`,
+    `A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${outerEnd.x} ${outerEnd.y}`,
+    `L ${innerEnd.x} ${innerEnd.y}`,
+    `A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${innerStart.x} ${innerStart.y}`,
+    'Z'
+  ].join(' ');
+}
+
 function renderHuntRing(){
   const foxPos=fox().pos;
   const hunterPos=hunter().pos;
+  const size=320;
+  const center=size/2;
+  const outer=145;
+  const inner=86;
+  const segmentAngle=360/BOARD_ORDER.length;
+  const gap=.8;
 
-  els.huntRing.innerHTML=BOARD_ORDER.map((number,index)=>{
-    const angle=(index/BOARD_ORDER.length)*360;
+  const segments=BOARD_ORDER.map((number,index)=>{
+    const start=index*segmentAngle+gap/2;
+    const end=(index+1)*segmentAngle-gap/2;
+    const mid=index*segmentAngle+segmentAngle/2;
+    const labelPoint=polarPoint(center,center,(outer+inner)/2,mid);
     const isFox=index===foxPos;
     const isHunter=index===hunterPos;
     const classes=[
-      'ring-segment',
+      'donut-segment',
       isFox?'fox-pos':'',
       isHunter?'hunter-pos':'',
       isFox&&isHunter?'same-pos':''
     ].filter(Boolean).join(' ');
 
-    return `<div class="${classes}" style="--angle:${angle}deg">
-      <span>${number}</span>
-    </div>`;
+    return `
+      <path class="${classes}" d="${donutPath(center,center,inner,outer,start,end)}"></path>
+      <text class="donut-number ${isFox||isHunter?'occupied':''}"
+        x="${labelPoint.x}" y="${labelPoint.y}"
+        text-anchor="middle" dominant-baseline="middle">${number}</text>`;
   }).join('');
+
+  els.huntRing.innerHTML=`
+    <svg class="hunt-ring-svg" viewBox="0 0 ${size} ${size}" role="img" aria-label="Positionen auf dem Dartboard">
+      <circle class="ring-outer-line" cx="${center}" cy="${center}" r="${outer}"></circle>
+      ${segments}
+      <circle class="ring-inner-line" cx="${center}" cy="${center}" r="${inner}"></circle>
+    </svg>`;
 
   els.distanceNumber.textContent=String(hunterDistanceToFox());
 }
