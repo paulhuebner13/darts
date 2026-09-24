@@ -1,0 +1,24 @@
+V46
+
+Cricket Bots:
+- vertikale Zahlen werden leichter getroffen als horizontale Zahlen
+- Faktoren für alle Zahlen 1-20 nach dem gemeinsam festgelegten Modell
+- 15-20 sind exakt auf Mittelwert 1,0 normalisiert
+- dadurch bleibt die durchschnittliche Bot-Schwierigkeit im klassischen Cricket unverändert
+- Bot-Stufen Anfänger/Leicht/Mittel/Schwer/Profi bleiben unverändert
+- auch zufällige numerische Nebentreffer folgen der Orientierungsverteilung,
+  ohne die Gesamtchance auf einen Nebentreffer zu verändern
+
+Live-Führung:
+- Differenz wird als tatsächliches Trefferäquivalent angezeigt
+- hinten positiv, z.B. +3 Treffer (+2,64)
+- vorne negativ, z.B. −2 Treffer (−1,73)
+- ganze Zahl wird auf tatsächliche benötigte Treffer aufgerundet
+- Rohwert steht auf zwei Dezimalstellen in Klammern
+- Gleichstand: ±0 Treffer (0,00)
+
+Platzierung:
+- aktive Spieler zeigen jetzt ebenfalls ihre aktuelle Live-Platzierung
+- bereits erreichte finale Plätze bleiben fix
+
+supabase-config.js bleibt im bestehenden Repo erhalten.

@@ -18,6 +18,41 @@ const TARGET_VALUES = Object.fromEntries([
 ]);
 const BOARD_ORDER = ['20', '1', '18', '4', '13', '6', '10', '15', '2', '17', '3', '19', '7', '16', '8', '11', '14', '9', '12', '5'];
 
+// Relative difficulty by board orientation.
+// Vertically aligned numbers are easier; horizontally aligned numbers harder.
+// The factors are normalized so the arithmetic mean for the classic Cricket
+// numbers 15–20 is exactly 1.0, preserving their overall bot difficulty.
+const NUMBER_ORIENTATION_RAW_FACTORS = {
+  '1': 1.063,
+  '2': 0.925,
+  '3': 1.273,
+  '4': 0.839,
+  '5': 1.063,
+  '6': 0.776,
+  '7': 0.925,
+  '8': 0.791,
+  '9': 0.839,
+  '10': 0.791,
+  '11': 0.776,
+  '12': 0.925,
+  '13': 0.791,
+  '14': 0.791,
+  '15': 0.839,
+  '16': 0.839,
+  '17': 1.063,
+  '18': 0.925,
+  '19': 1.063,
+  '20': 1.273,
+};
+const CLASSIC_CRICKET_FACTOR_MEAN = ['15','16','17','18','19','20']
+  .reduce((sum, target) => sum + NUMBER_ORIENTATION_RAW_FACTORS[target], 0) / 6;
+
+function numberOrientationFactor(target) {
+  if (target === 'Bull') return 1;
+  const raw = Number(NUMBER_ORIENTATION_RAW_FACTORS[String(target)]) || 1;
+  return raw / CLASSIC_CRICKET_FACTOR_MEAN;
+}
+
 // Die taktische Entscheidung ist bei allen Bots gleich. Nur die Genauigkeit des
 // tatsächlich anvisierten Feldes wird mit der Bot-Stufe skaliert.
 const BOT_STRATEGY = {
@@ -1288,10 +1323,27 @@ function calculateCricketLeadProgress() {
   });
 }
 
+function formatSignedRawHits(value) {
+  if (Math.abs(value) < 0.005) return '0,00';
+  const sign = value < 0 ? '−' : '+';
+  return `${sign}${Math.abs(value).toFixed(2).replace('.', ',')}`;
+}
+
+function roundedActualHits(value) {
+  if (Math.abs(value) < 1e-9) return 0;
+  const magnitude = Math.ceil(Math.abs(value) - 1e-9);
+  return value < 0 ? -magnitude : magnitude;
+}
+
+function formatSignedWholeHits(value) {
+  if (value === 0) return '±0';
+  return value < 0 ? `−${Math.abs(value)}` : `+${value}`;
+}
+
 function calculateCricketLeadLabels() {
   const progress = calculateCricketLeadProgress();
   const activeProgress = progress.filter((value) => Number.isFinite(value));
-  if (!activeProgress.length) return game.players.map(() => ({ text: '', leader: false }));
+  if (!activeProgress.length) return game.players.map(() => ({ text: '', leader: false, raw: null }));
 
   const leaderProgress = Math.max(...activeProgress);
   const leaders = progress
@@ -1304,24 +1356,81 @@ function calculateCricketLeadLabels() {
   const nextBest = sortedBehind.length ? sortedBehind[0] : leaderProgress;
 
   return progress.map((value, index) => {
-    if (!Number.isFinite(value)) return { text: '', leader: false };
+    if (!Number.isFinite(value)) return { text: '', leader: false, raw: null };
+
+    let signedRaw;
+    let leader = false;
 
     if (leaders.includes(index)) {
-      if (leaders.length > 1) return { text: 'Führung ±0', leader: true };
-      const lead = Math.max(0, Math.ceil((leaderProgress - nextBest) - 1e-9));
-      return { text: `Führung +${lead}`, leader: true };
+      leader = true;
+      if (leaders.length > 1) {
+        signedRaw = 0;
+      } else {
+        // A leader is shown with a negative value: how many hit-equivalents
+        // the next-best player is behind them.
+        signedRaw = -(leaderProgress - nextBest);
+      }
+    } else {
+      // A trailing player is shown with a positive value: hit-equivalents
+      // required to draw level with the current leader.
+      signedRaw = leaderProgress - value;
     }
 
-    const needed = Math.max(1, Math.ceil((leaderProgress - value) - 1e-9));
-    return { text: `+${needed} Würfe`, leader: false };
+    const wholeHits = roundedActualHits(signedRaw);
+    return {
+      text: `${formatSignedWholeHits(wholeHits)} Treffer (${formatSignedRawHits(signedRaw)})`,
+      leader,
+      raw: signedRaw,
+    };
   });
+}
+
+function calculateLivePlacements() {
+  const progress = calculateCricketLeadProgress();
+
+  // Finished players keep their already assigned final placement.
+  const placements = game.players.map((player) => (
+    Number.isFinite(Number(player.placement)) && Number(player.placement) > 0
+      ? Number(player.placement)
+      : null
+  ));
+
+  const fixedPlaces = placements.filter((value) => value !== null);
+  const nextPlace = fixedPlaces.length ? Math.max(...fixedPlaces) + 1 : 1;
+
+  const active = game.players
+    .map((player, index) => ({ index, progress: progress[index] }))
+    .filter((entry) => isPlayerActive(game.players[entry.index]) && Number.isFinite(entry.progress))
+    .sort((a, b) => b.progress - a.progress || a.index - b.index);
+
+  let place = nextPlace;
+  let previousProgress = null;
+  let previousPlace = place;
+
+  active.forEach((entry, orderIndex) => {
+    if (
+      previousProgress !== null
+      && Math.abs(entry.progress - previousProgress) < 1e-9
+    ) {
+      placements[entry.index] = previousPlace;
+    } else {
+      place = nextPlace + orderIndex;
+      placements[entry.index] = place;
+      previousPlace = place;
+    }
+    previousProgress = entry.progress;
+  });
+
+  return placements;
 }
 
 function renderScoreboard() {
   const leadLabels = calculateCricketLeadLabels();
+  const livePlacements = calculateLivePlacements();
   const headerCells = game.players.map((player, index) => {
     const placed = !isPlayerActive(player);
-    const rank = placed ? `<span class="head-rank">${Number(player.placement)}.</span>` : '';
+    const shownPlacement = Number(livePlacements[index]) || Number(player.placement) || '';
+    const rank = shownPlacement ? `<span class="head-rank ${placed ? 'final-rank' : 'live-rank'}">${shownPlacement}.</span>` : '';
     const turnThrows = Array.isArray(player.turnThrows) ? player.turnThrows.slice(0, 3) : [];
     const paddedThrows = [...turnThrows, ...Array(Math.max(0, 3 - turnThrows.length)).fill('')];
     const mpr = formatNumber(calculateMpr(player));
@@ -1451,7 +1560,12 @@ function randomAccidentalDart(aimedAt, aimedMultiplier) {
     } else if (fieldType === 'innerBull') {
       dart = { target: 'Bull', multiplier: 2 };
     } else {
-      const target = String(Math.floor(Math.random() * 20) + 1);
+      const target = weightedChoice(
+        Array.from({ length: 20 }, (_, index) => {
+          const value = String(index + 1);
+          return { value, weight: numberOrientationFactor(value) };
+        }),
+      );
       const multiplier = fieldType === 'numericTriple' ? 3 : fieldType === 'numericDouble' ? 2 : 1;
       dart = { target, multiplier };
     }
@@ -1532,10 +1646,13 @@ function resolveBullBotDart(aimMultiplier, factor) {
 }
 
 function resolveBotDart(target, aimMultiplier, levelKey) {
-  const factor = BOT_LEVELS[levelKey]?.factor || BOT_LEVELS.normal.factor;
-  return target === 'Bull'
-    ? resolveBullBotDart(aimMultiplier, factor)
-    : resolveNumericBotDart(target, aimMultiplier, factor);
+  const levelFactor = BOT_LEVELS[levelKey]?.factor || BOT_LEVELS.normal.factor;
+  if (target === 'Bull') {
+    return resolveBullBotDart(aimMultiplier, levelFactor);
+  }
+
+  const adjustedFactor = levelFactor * numberOrientationFactor(target);
+  return resolveNumericBotDart(target, aimMultiplier, adjustedFactor);
 }
 
 function activeOpponentsFor(playerIndex) {

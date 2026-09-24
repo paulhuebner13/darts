@@ -439,3 +439,17 @@ body.game-active .modifier-button{
   font-weight:900;
   text-align:right;
 }
+
+
+/* v46: live placement + signed hit-equivalent lead */
+.head-rank.live-rank{
+  opacity:.78;
+}
+.head-rank.final-rank{
+  opacity:1;
+}
+.head-lead{
+  white-space:nowrap;
+  font-size:.56rem!important;
+  letter-spacing:-.01em;
+}
