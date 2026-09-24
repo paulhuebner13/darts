@@ -1,0 +1,17 @@
+V42
+
+Fuchsjagd:
+- Miss/Treffer entfernt
+- Eingabe jetzt wie Around the Clock: 1 / 2 / 3 Treffer + Weiter
+- Klick auf z.B. 2 markiert 1 und 2
+- erneuter Klick auf dieselbe Zahl setzt auf 0 Treffer zurück
+- großer 20-Felder-Ring
+- Fuchsposition gelb
+- Jägerposition grün
+- gemeinsames Feld zweifarbig
+- Mitte zeigt Abstand des Jägers zum Fuchs in Feldern
+- zwei Spieler-/Zielkarten bleiben sichtbar
+- aktiver Spieler weiter klar hervorgehoben
+- alles für Handyhöhe kompakt gehalten
+
+supabase-config.js bleibt im bestehenden Repo erhalten.

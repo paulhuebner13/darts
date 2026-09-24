@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#111827">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="foxhunt.css?v=41">
+  <link rel="stylesheet" href="foxhunt.css?v=42">
   <link rel="stylesheet" href="mode-nav.css">
   <title>Fuchsjagd</title>
 </head>
@@ -60,13 +60,21 @@
 
       <div id="versusBoard" class="versus-board"></div>
 
-      <div class="dart-dots" id="dartDots" aria-label="Darts im aktuellen Zug">
-        <span></span><span></span><span></span>
+      <div class="hunt-ring-wrap">
+        <div id="huntRing" class="hunt-ring" aria-label="Positionen auf dem Dartboard"></div>
+        <div class="hunt-ring-center">
+          <strong id="distanceNumber">0</strong>
+          <span>Felder</span>
+        </div>
       </div>
 
-      <div class="throw-actions">
-        <button id="missBtn" class="secondary throw-button" type="button">Miss</button>
-        <button id="hitBtn" class="primary throw-button" type="button">Treffer</button>
+      <div class="visit-input">
+        <div id="hitCountPicker" class="hit-count-picker" aria-label="Treffer in diesem Zug">
+          <button type="button" data-hits="1">1</button>
+          <button type="button" data-hits="2">2</button>
+          <button type="button" data-hits="3">3</button>
+        </div>
+        <button id="continueBtn" class="primary continue-button" type="button">Weiter</button>
       </div>
 
       <button id="undoBtn" class="quiet undo-button" type="button">↶</button>
@@ -83,6 +91,6 @@
   </dialog>
 
   <script src="supabase-config.js"></script>
-  <script src="foxhunt.js?v=41"></script>
+  <script src="foxhunt.js?v=42"></script>
 </body>
 </html>
