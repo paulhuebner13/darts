@@ -1,4 +1,4 @@
-const CACHE_NAME = 'darts-suite-v40';
+const CACHE_NAME = 'darts-suite-v41';
 const ASSETS = [
   './',
   './index.html',
@@ -13,8 +13,8 @@ const ASSETS = [
   './501.css','./501.css?v=31',
   './501.js','./501.js?v=31',
   './foxhunt.html',
-  './foxhunt.css','./foxhunt.css?v=40',
-  './foxhunt.js','./foxhunt.js?v=40',
+  './foxhunt.css','./foxhunt.css?v=41',
+  './foxhunt.js','./foxhunt.js?v=41',
   './manifest.json',
   './icon.svg'
 ];

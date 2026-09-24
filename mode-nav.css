@@ -38,3 +38,15 @@
 @media(max-width:420px){
   .mode-pill{font-size:.61rem;padding:6px 2px}
 }
+
+/* v41: four modes fit cleanly; long labels may use two lines */
+.mode-switch{align-items:stretch}
+.mode-pill{
+  white-space:normal!important;
+  line-height:1.05!important;
+  text-align:center!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  min-height:38px;
+}

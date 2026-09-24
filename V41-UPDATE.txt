@@ -1,0 +1,17 @@
+V41
+
+Fuchsjagd:
+- verwendet dieselbe gemeinsame Spielerliste wie Cricket
+- Spieler werden aus Supabase cricket_players automatisch synchronisiert
+- nur 2 Spieler pro Fuchsjagd
+- kein Emoji und kaum Erklärungstext
+- kompakter Aufbau
+- Around the Clock darf in der Navigation zweizeilig sein
+- zwei große Spieler-/Positionskarten nebeneinander
+- aktiver Spieler klar hervorgehoben
+- aktuelles Zielfeld groß sichtbar
+- Abstand zum Gegner auf jeder Karte
+- 3 Dart-Punkte für den aktuellen Zug
+- unten nur Miss / Treffer, plus kleines Undo
+
+supabase-config.js bleibt außerhalb des ZIP und muss im bestehenden Repo erhalten bleiben.
